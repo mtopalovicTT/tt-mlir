@@ -114,11 +114,13 @@ void populateTTModule(py::module &m) {
                             unsigned numDramChannels, unsigned dramChannelSize,
                             unsigned nocL1AddressAlignBytes,
                             unsigned pcieAddressAlignBytes,
-                            unsigned nocDRAMAddressAlignBytes) {
+                            unsigned nocDRAMAddressAlignBytes,
+                            MlirAttribute chipCoreMappings) {
         return wrap(tt::ChipDescAttr::get(
             unwrap(ctx), mlir::cast<tt::ArchAttr>(unwrap(arch)), grid, l1Size,
             numDramChannels, dramChannelSize, nocL1AddressAlignBytes,
-            pcieAddressAlignBytes, nocDRAMAddressAlignBytes));
+            pcieAddressAlignBytes, nocDRAMAddressAlignBytes,
+            mlir::dyn_cast<tt::ChipCoreMappingAttr>(unwrap(chipCoreMappings))));
       });
 
   py::class_<tt::ChipCoordAttr>(m, "ChipCoordAttr")
@@ -143,7 +145,6 @@ void populateTTModule(py::module &m) {
                             std::vector<unsigned> chipDescIndices,
                             std::vector<MlirAttribute> chipCapabilities,
                             std::vector<MlirAttribute> chipCoords,
-                            std::vector<MlirAttribute> chipCoreMappings,
                             std::vector<MlirAttribute> chipChannels) {
         std::vector<tt::ChipDescAttr> chipDescsUnwrapped;
         for (auto chipDesc : chipDescs) {
@@ -166,16 +167,10 @@ void populateTTModule(py::module &m) {
               mlir::cast<tt::ChipChannelAttr>(unwrap(chipChannel)));
         }
 
-        std::vector<tt::ChipCoreMappingAttr> chipCoreMappingsUnwrapped;
-        for (auto chipCoreMapping : chipCoreMappings) {
-          chipCoreMappingsUnwrapped.push_back(
-              mlir::cast<tt::ChipCoreMappingAttr>(unwrap(chipCoreMapping)));
-        }
-
         return wrap(tt::SystemDescAttr::get(
             unwrap(ctx), chipDescsUnwrapped, chipDescIndices,
             chipCapabilitiesUnwrapped, chipCoordsUnwrapped,
-            chipCoreMappingsUnwrapped, chipChannelsUnwrapped));
+            chipChannelsUnwrapped));
       });
 
   py::class_<tt::MemorySpaceAttr>(m, "MemorySpaceAttr")

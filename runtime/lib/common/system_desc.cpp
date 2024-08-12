@@ -94,71 +94,58 @@ getAllDeviceConnections(const vector<::tt::tt_metal::Device *> &devices) {
 }
 
 // Gather all core mappings for the device using metal device APIs
-static std::vector<flatbuffers::Offset<::tt::target::ChipCoreMapping>>
-createChipCoreMappings(const vector<::tt::tt_metal::Device *> &devices,
+static flatbuffers::Offset<::tt::target::ChipCoreMapping>
+createChipCoreMappings(const ::tt::tt_metal::Device *device,
                        flatbuffers::FlatBufferBuilder &fbb) {
 
-  std::vector<flatbuffers::Offset<::tt::target::ChipCoreMapping>>
-      chipCoreMappings;
+  std::vector<::tt::target::Dim2d> worker_mappings_vec;
+  std::vector<::tt::target::Dim2d> dram_mappings_vec;
+  std::vector<::tt::target::Dim2d> eth_mappings_vec;
 
-  for (const ::tt::tt_metal::Device *device : devices) {
-
-    std::vector<::tt::target::CoreMapping> worker_mappings_vec;
-    std::vector<::tt::target::CoreMapping> dram_mappings_vec;
-    std::vector<::tt::target::CoreMapping> eth_mappings_vec;
-
-    // Worker core mappings
-    auto logical_grid_size = device->logical_grid_size();
-    for (uint32_t x = 0; x < logical_grid_size.x; x++) {
-      for (uint32_t y = 0; y < logical_grid_size.y; y++) {
-        CoreCoord logical(x, y);
-        CoreCoord physical = device->worker_core_from_logical_core(logical);
-        worker_mappings_vec.emplace_back(::tt::target::CoreMapping(
-            ::tt::target::Dim2d(logical.x, logical.y),
-            ::tt::target::Dim2d(physical.x, physical.y)));
-      }
+  // Worker core mappings
+  auto logical_grid_size = device->logical_grid_size();
+  for (uint32_t x = 0; x < logical_grid_size.x; x++) {
+    for (uint32_t y = 0; y < logical_grid_size.y; y++) {
+      auto physical = device->worker_core_from_logical_core(CoreCoord(x, y));
+      worker_mappings_vec.emplace_back(
+          ::tt::target::Dim2d(physical.x, physical.y));
     }
-
-    // DRAM core mappings
-    auto dram_grid_size = device->dram_grid_size();
-    for (uint32_t x = 0; x < dram_grid_size.x; x++) {
-      for (uint32_t y = 0; y < dram_grid_size.y; y++) {
-        CoreCoord logical(x, y);
-        CoreCoord physical = device->dram_core_from_logical_core(logical);
-        dram_mappings_vec.emplace_back(::tt::target::CoreMapping(
-            ::tt::target::Dim2d(logical.x, logical.y),
-            ::tt::target::Dim2d(physical.x, physical.y)));
-      }
-    }
-
-    // Ethernet core mappings
-    auto all_eth_cores(device->get_active_ethernet_cores());
-    all_eth_cores.insert(device->get_inactive_ethernet_cores().begin(),
-                         device->get_inactive_ethernet_cores().end());
-
-    for (const auto &logical : all_eth_cores) {
-      CoreCoord physical = device->ethernet_core_from_logical_core(logical);
-      eth_mappings_vec.emplace_back(::tt::target::CoreMapping(
-          ::tt::target::Dim2d(logical.x, logical.y),
-          ::tt::target::Dim2d(physical.x, physical.y)));
-    }
-
-    // Debug - Remove before merge.
-    std::cout << "Done getting mappings for device: " << device->id()
-              << " Worker: " << worker_mappings_vec.size()
-              << ", DRAM: " << dram_mappings_vec.size()
-              << ", ETH: " << eth_mappings_vec.size() << std::endl;
-
-    // Create fb CoreMapping vectors and ChipCoreMapping table.
-    auto workerCoreMappings = fbb.CreateVectorOfStructs(worker_mappings_vec);
-    auto dramCoreMappings = fbb.CreateVectorOfStructs(dram_mappings_vec);
-    auto ethCoreMappings = fbb.CreateVectorOfStructs(eth_mappings_vec);
-    auto chipCoreMapping = ::tt::target::CreateChipCoreMapping(
-        fbb, workerCoreMappings, ethCoreMappings, dramCoreMappings);
-
-    chipCoreMappings.push_back(chipCoreMapping);
   }
-  return chipCoreMappings;
+
+  // DRAM core mappings
+  auto dram_grid_size = device->dram_grid_size();
+  for (uint32_t x = 0; x < dram_grid_size.x; x++) {
+    for (uint32_t y = 0; y < dram_grid_size.y; y++) {
+      auto physical = device->dram_core_from_logical_core(CoreCoord(x, y));
+      dram_mappings_vec.emplace_back(
+          ::tt::target::Dim2d(physical.x, physical.y));
+    }
+  }
+
+  // Ethernet core mappings
+  auto all_eth_cores(device->get_active_ethernet_cores());
+  all_eth_cores.insert(device->get_inactive_ethernet_cores().begin(),
+                       device->get_inactive_ethernet_cores().end());
+
+  for (const auto &logical : all_eth_cores) {
+    auto physical = device->ethernet_core_from_logical_core(logical);
+    eth_mappings_vec.emplace_back(::tt::target::Dim2d(physical.x, physical.y));
+  }
+
+  // Debug - Remove before merge.
+  std::cout << "Done getting mappings for device: " << device->id()
+            << " Worker: " << worker_mappings_vec.size()
+            << ", DRAM: " << dram_mappings_vec.size()
+            << ", ETH: " << eth_mappings_vec.size() << std::endl;
+
+  // Create fb CoreMapping vectors and ChipCoreMapping table.
+  auto workerCoreMappings = fbb.CreateVectorOfStructs(worker_mappings_vec);
+  auto dramCoreMappings = fbb.CreateVectorOfStructs(dram_mappings_vec);
+  auto ethCoreMappings = fbb.CreateVectorOfStructs(eth_mappings_vec);
+  auto chipCoreMapping = ::tt::target::CreateChipCoreMapping(
+      fbb, workerCoreMappings, ethCoreMappings, dramCoreMappings);
+
+  return chipCoreMapping;
 }
 
 static std::unique_ptr<::tt::runtime::SystemDesc>
@@ -180,11 +167,15 @@ getCurrentSystemDescImpl(const ::tt::tt_metal::DeviceMesh &deviceMesh) {
     // Construct chip descriptor
     ::tt::target::Dim2d deviceGrid =
         toFlatbuffer(device->compute_with_storage_grid_size());
+
+    // Extract core mappings for worker, dram, eth core
+    auto chipCoreMappings = createChipCoreMappings(device, fbb);
+
     chipDescs.push_back(::tt::target::CreateChipDesc(
         fbb, toFlatbuffer(device->arch()), &deviceGrid,
         device->l1_size_per_core(), device->num_dram_channels(),
         device->dram_size_per_channel(), L1_ALIGNMENT, PCIE_ALIGNMENT,
-        DRAM_ALIGNMENT));
+        DRAM_ALIGNMENT, chipCoreMappings));
     chipDescIndices.push_back(device->id());
     // Derive chip capability
     ::tt::target::ChipCapability chipCapability =
@@ -199,13 +190,10 @@ getCurrentSystemDescImpl(const ::tt::tt_metal::DeviceMesh &deviceMesh) {
   std::vector<::tt::target::ChipChannel> allConnections =
       getAllDeviceConnections(devices);
 
-  // Extract core mappings for worker, dram, eth core
-  auto chipCoreMappings = createChipCoreMappings(devices, fbb);
-
   // Create SystemDesc
   auto systemDesc = ::tt::target::CreateSystemDescDirect(
       fbb, &chipDescs, &chipDescIndices, &chipCapabilities, &chipCoords,
-      &chipCoreMappings, &allConnections);
+      &allConnections);
   ::ttmlir::Version ttmlirVersion = ::ttmlir::getVersion();
   ::tt::target::Version version(ttmlirVersion.major, ttmlirVersion.minor,
                                 ttmlirVersion.patch);

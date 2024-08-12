@@ -55,14 +55,25 @@ def TT_ArchAttr : EnumAttr<TT_Dialect, TT_Arch, "arch"> {
   let assemblyFormat = "`<` $value `>`";
 }
 
+def TT_ChipCoreMappingAttr : TT_Attr<"ChipCoreMapping", "chip_core_mapping"> {
+  let summary = "TT chip_core_mapping attribute";
+  let description = [{
+    TT chip_core_mapping attribute containing arrays of core mappings by core type.
+  }];
+
+  let parameters = (ins ArrayRefParameter<"int64_t">:$worker, ArrayRefParameter<"int64_t">:$dram, ArrayRefParameter<"int64_t">:$eth);
+  let assemblyFormat = "`{` `worker` `=` custom<DimensionList>($worker) `,` `dram` `=` custom<DimensionList>($dram) `,` `eth` `=` custom<DimensionList>($eth) `}`";
+}
+
+
 def TT_ChipDescAttr : TT_Attr<"ChipDesc", "chip_desc"> {
   let summary = "TT chip_desc attribute";
   let description = [{
     TT chip_desc attribute
   }];
 
-  let parameters = (ins "ArchAttr":$arch, ArrayRefParameter<"int64_t">:$grid, "unsigned":$l1Size, "unsigned":$numDramChannels, "unsigned":$dramChannelSize, "unsigned":$nocL1AddressAlignBytes, "unsigned":$pcieAddressAlignBytes, "unsigned":$nocDRAMAddressAlignBytes);
-  let assemblyFormat = "`{` `arch` `=` $arch `,` `grid` `=` custom<DimensionList>($grid) `,` `l1_size` `=` $l1Size `,` `num_dram_channels` `=` $numDramChannels `,` `dram_channel_size` `=` $dramChannelSize `,` `noc_l1_address_align_bytes` `=` $nocL1AddressAlignBytes `,` `pcie_address_align_bytes` `=` $pcieAddressAlignBytes `,` `noc_dram_address_align_bytes` `=` $nocDRAMAddressAlignBytes `}`";
+  let parameters = (ins "ArchAttr":$arch, ArrayRefParameter<"int64_t">:$grid, "unsigned":$l1Size, "unsigned":$numDramChannels, "unsigned":$dramChannelSize, "unsigned":$nocL1AddressAlignBytes, "unsigned":$pcieAddressAlignBytes, "unsigned":$nocDRAMAddressAlignBytes, "ChipCoreMappingAttr":$chipCoreMappings);
+  let assemblyFormat = "`{` `arch` `=` $arch `,` `grid` `=` custom<DimensionList>($grid) `,` `l1_size` `=` $l1Size `,` `num_dram_channels` `=` $numDramChannels `,` `dram_channel_size` `=` $dramChannelSize `,` `noc_l1_address_align_bytes` `=` $nocL1AddressAlignBytes `,` `pcie_address_align_bytes` `=` $pcieAddressAlignBytes `,` `noc_dram_address_align_bytes` `=` $nocDRAMAddressAlignBytes  `,` `core_mappings` `=` $chipCoreMappings  `}`";
 }
 
 def TT_ChipCoordAttr : TT_Attr<"ChipCoord", "chip_coord"> {
@@ -84,17 +95,6 @@ def TT_CoreMappingAttr : TT_Attr<"CoreMapping", "core_mapping"> {
   let parameters = (ins ArrayRefParameter<"int64_t">:$logical, ArrayRefParameter<"int64_t">:$physical);
   let assemblyFormat = "`{` custom<DimensionList>($logical) `:` custom<DimensionList>($physical) `}`";
 }
-
-def TT_ChipCoreMappingAttr : TT_Attr<"ChipCoreMapping", "chip_core_mapping"> {
-  let summary = "TT chip_core_mapping attribute";
-  let description = [{
-    TT chip_core_mapping attribute containing arrays of core mappings by core type.
-  }];
-
-  let parameters = (ins ArrayRefParameter<"CoreMappingAttr">:$worker, ArrayRefParameter<"CoreMappingAttr">:$dram, ArrayRefParameter<"CoreMappingAttr">:$eth);
-  let assemblyFormat = "`{` `worker` `=` `[` $worker `]` `,` `dram` `=` `[` $dram `]` `,` `eth` `=` `[` $eth `]` `}`";
-}
-
 
 def TT_ChipChannelAttr : TT_Attr<"ChipChannel", "chip_channel"> {
   let summary = "TT chip_channel attribute";
@@ -119,9 +119,8 @@ def TT_SystemDescAttr : TT_Attr<"SystemDesc", "system_desc"> {
                         ArrayRefParameter<"unsigned">:$chipDescIndices,
                         ArrayRefParameter<"ChipCapabilityAttr">:$chipCapabilities,
                         ArrayRefParameter<"ChipCoordAttr">:$chipCoords,
-                        ArrayRefParameter<"ChipCoreMappingAttr">:$chipCoreMappings,
                         OptionalArrayRefParameter<"ChipChannelAttr">:$chipChannels);
-  let assemblyFormat = "`<` `[` $chipDescs `]` `,` `[` $chipDescIndices `]` `,` `[` $chipCapabilities `]` `,` `[` $chipCoords `]` `,` `[` $chipCoreMappings `]` (`,` `[` $chipChannels^ `]`)? `>`";
+  let assemblyFormat = "`<` `[` $chipDescs `]` `,` `[` $chipDescIndices `]` `,` `[` $chipCapabilities `]` `,` `[` $chipCoords `]` (`,` `[` $chipChannels^ `]`)? `>`";
 
   let extraClassDeclaration = [{
     static tt::SystemDescAttr getDefault(MLIRContext *context);

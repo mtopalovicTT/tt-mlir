@@ -101,6 +101,7 @@ table ChipDesc {
   noc_l1_address_align_bytes: uint32;
   pcie_address_align_bytes: uint32;
   noc_dram_address_align_bytes: uint32;
+  chip_core_mappings: ChipCoreMapping;
 }
 
 struct ChipCoord {
@@ -117,15 +118,10 @@ struct ChipChannel {
   ethernet_core_coord1: Dim2d;
 }
 
-struct CoreMapping {
-  logical: Dim2d;
-  physical: Dim2d;
-}
-
 table ChipCoreMapping {
-  worker: [CoreMapping];
-  eth: [CoreMapping];
-  dram: [CoreMapping];
+  worker: [Dim2d];
+  eth: [Dim2d];
+  dram: [Dim2d];
 }
 
 table SystemDesc {
@@ -133,7 +129,6 @@ table SystemDesc {
   chip_desc_indices: [uint32];
   chip_capabilities: [ChipCapability];
   chip_coords: [ChipCoord];
-  chip_core_mappings: [ChipCoreMapping];
   chip_channels: [ChipChannel];
 }
 
