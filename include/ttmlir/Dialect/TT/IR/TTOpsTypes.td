@@ -61,8 +61,8 @@ def TT_ChipCoreMappingAttr : TT_Attr<"ChipCoreMapping", "chip_core_mapping"> {
     TT chip_core_mapping attribute containing arrays of core mappings by core type.
   }];
 
-  let parameters = (ins ArrayRefParameter<"int64_t">:$worker, ArrayRefParameter<"int64_t">:$dram, ArrayRefParameter<"int64_t">:$eth);
-  let assemblyFormat = "`{` `worker` `=` custom<CoreList>($worker) `,` `dram` `=` custom<CoreList>($dram) `,` `eth` `=` custom<CoreList>($eth) `}`";
+  let parameters = (ins ArrayRefParameter<"int64_t">:$worker, ArrayRefParameter<"int64_t">:$dram, ArrayRefParameter<"int64_t">:$eth, ArrayRefParameter<"int64_t">:$eth_inactive);
+  let assemblyFormat = "`{` `worker` `=` custom<CoreList>($worker) `,` `dram` `=` custom<CoreList>($dram) `,` `eth` `=` custom<CoreList>($eth) `,` `eth_inactive` `=` custom<CoreList>($eth_inactive) `}`";
 }
 
 

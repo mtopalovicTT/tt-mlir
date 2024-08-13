@@ -101,6 +101,7 @@ createChipCoreMappings(const ::tt::tt_metal::Device *device,
   std::vector<::tt::target::Dim2d> worker_mappings_vec;
   std::vector<::tt::target::Dim2d> dram_mappings_vec;
   std::vector<::tt::target::Dim2d> eth_mappings_vec;
+  std::vector<::tt::target::Dim2d> eth_inactive_mappings_vec;
 
   // Worker core mappings
   auto logical_grid_size = device->logical_grid_size();
@@ -133,7 +134,7 @@ createChipCoreMappings(const ::tt::tt_metal::Device *device,
   all_eth_cores.insert(device->get_inactive_ethernet_cores().begin(),
                        device->get_inactive_ethernet_cores().end());
 
-  for (const auto &logical : all_eth_cores) {
+  for (const auto &logical : device->get_active_ethernet_cores()) {
     auto physical = device->ethernet_core_from_logical_core(logical);
     std::cout << "KCM ETH core logical y: " << logical.y << ", x: " << logical.x
               << " -> physical y: " << physical.y << ", x: " << physical.x
@@ -141,18 +142,33 @@ createChipCoreMappings(const ::tt::tt_metal::Device *device,
     eth_mappings_vec.emplace_back(::tt::target::Dim2d(physical.y, physical.x));
   }
 
+  // Ethernet core mappings (inactive)
+  for (const auto &logical : device->get_inactive_ethernet_cores()) {
+    auto physical = device->ethernet_core_from_logical_core(logical);
+    std::cout << "KCM ETH_INACTIVE core logical y: " << logical.y
+              << ", x: " << logical.x << " -> physical y: " << physical.y
+              << ", x: " << physical.x << std::endl;
+    eth_inactive_mappings_vec.emplace_back(
+        ::tt::target::Dim2d(physical.y, physical.x));
+  }
+
   // Debug - Remove before merge.
   std::cout << "Done getting mappings for device: " << device->id()
             << " Worker: " << worker_mappings_vec.size()
             << ", DRAM: " << dram_mappings_vec.size()
-            << ", ETH: " << eth_mappings_vec.size() << std::endl;
+            << ", ETH: " << eth_mappings_vec.size()
+            << ", ETH_INACTIVE: " << eth_inactive_mappings_vec.size()
+            << std::endl;
 
   // Create fb CoreMapping vectors and ChipCoreMapping table.
   auto workerCoreMappings = fbb.CreateVectorOfStructs(worker_mappings_vec);
   auto dramCoreMappings = fbb.CreateVectorOfStructs(dram_mappings_vec);
   auto ethCoreMappings = fbb.CreateVectorOfStructs(eth_mappings_vec);
+  auto ethInactiveCoreMappings =
+      fbb.CreateVectorOfStructs(eth_inactive_mappings_vec);
   auto chipCoreMapping = ::tt::target::CreateChipCoreMapping(
-      fbb, workerCoreMappings, dramCoreMappings, ethCoreMappings);
+      fbb, workerCoreMappings, dramCoreMappings, ethCoreMappings,
+      ethInactiveCoreMappings);
 
   return chipCoreMapping;
 }

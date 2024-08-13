@@ -167,8 +167,13 @@ toFlatbuffer(FlatbufferObjectCache &cache,
       {::tt::target::Dim2d(chipCoreMapping.getEth()[0],
                            chipCoreMapping.getEth()[1])});
 
-  return ::tt::target::CreateChipCoreMapping(*cache.fbb, workerVector,
-                                             dramVector, ethVector);
+  auto ethInactiveVector =
+      cache.fbb->CreateVectorOfStructs<::tt::target::Dim2d>(
+          {::tt::target::Dim2d(chipCoreMapping.getEthInactive()[0],
+                               chipCoreMapping.getEthInactive()[1])});
+
+  return ::tt::target::CreateChipCoreMapping(
+      *cache.fbb, workerVector, dramVector, ethVector, ethInactiveVector);
 }
 
 template <typename T, std::enable_if_t<std::is_arithmetic<T>::value, int> = 0>

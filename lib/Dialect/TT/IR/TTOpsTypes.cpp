@@ -34,7 +34,7 @@ mlir::tt::SystemDescAttr::getDefault(MLIRContext *context) {
           tt::ChipDescAttr::get(
               context, tt::ArchAttr::get(context, tt::Arch::WormholeB0), {8, 8},
               1499136, 12, (1 << 30), 16, 32, 32,
-              tt::ChipCoreMappingAttr::get(context, {0}, {0}, {0})),
+              tt::ChipCoreMappingAttr::get(context, {0}, {0}, {0}, {0})),
       },
       // Chip Descriptor Indices
       {
@@ -84,6 +84,7 @@ mlir::tt::SystemDescAttr::getFromPath(MLIRContext *context, std::string &path) {
     std::vector<int64_t> worker_core_mappings;
     std::vector<int64_t> dram_core_mappings;
     std::vector<int64_t> eth_core_mappings;
+    std::vector<int64_t> eth_inactive_core_mappings;
 
     for (auto const &dim : *chip_core_mapping->worker()) {
       worker_core_mappings.push_back(dim->y());
@@ -97,10 +98,15 @@ mlir::tt::SystemDescAttr::getFromPath(MLIRContext *context, std::string &path) {
       eth_core_mappings.push_back(dim->y());
       eth_core_mappings.push_back(dim->x());
     }
+    for (auto const &dim : *chip_core_mapping->eth_inactive()) {
+      eth_inactive_core_mappings.push_back(dim->y());
+      eth_inactive_core_mappings.push_back(dim->x());
+    }
 
     // Create ChipCoreMappingAttr directly from physical Dim2d entries
     auto chip_core_mapping_attr = tt::ChipCoreMappingAttr::get(
-        context, worker_core_mappings, dram_core_mappings, eth_core_mappings);
+        context, worker_core_mappings, dram_core_mappings, eth_core_mappings,
+        eth_inactive_core_mappings);
 
     auto current_chip_desc_attr = tt::ChipDescAttr::get(
         context, tt::ArchAttr::get(context, tt::Arch::WormholeB0),

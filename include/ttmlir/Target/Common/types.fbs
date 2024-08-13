@@ -122,6 +122,7 @@ table ChipCoreMapping {
   worker: [Dim2d];
   dram: [Dim2d];
   eth: [Dim2d];
+  eth_inactive: [Dim2d];
 }
 
 table SystemDesc {
