@@ -150,29 +150,29 @@ inline ::tt::target::Dim2d toFlatbuffer(FlatbufferObjectCache &cache,
   return ::tt::target::Dim2d(arch.getShape()[0], arch.getShape()[1]);
 }
 
-inline flatbuffers::Offset<::tt::target::ChipCoreMapping>
+inline flatbuffers::Offset<::tt::target::ChipPhysicalCores>
 toFlatbuffer(FlatbufferObjectCache &cache,
-             ChipCoreMappingAttr chipCoreMapping) {
+             ChipPhysicalCoresAttr chipPhysicalCores) {
 
   // Create a Flatbuffer Dim2d struct for each core type
   auto workerVector = cache.fbb->CreateVectorOfStructs<::tt::target::Dim2d>(
-      {::tt::target::Dim2d(chipCoreMapping.getWorker()[0],
-                           chipCoreMapping.getWorker()[1])});
+      {::tt::target::Dim2d(chipPhysicalCores.getWorker()[0],
+                           chipPhysicalCores.getWorker()[1])});
 
   auto dramVector = cache.fbb->CreateVectorOfStructs<::tt::target::Dim2d>(
-      {::tt::target::Dim2d(chipCoreMapping.getDram()[0],
-                           chipCoreMapping.getDram()[1])});
+      {::tt::target::Dim2d(chipPhysicalCores.getDram()[0],
+                           chipPhysicalCores.getDram()[1])});
 
   auto ethVector = cache.fbb->CreateVectorOfStructs<::tt::target::Dim2d>(
-      {::tt::target::Dim2d(chipCoreMapping.getEth()[0],
-                           chipCoreMapping.getEth()[1])});
+      {::tt::target::Dim2d(chipPhysicalCores.getEth()[0],
+                           chipPhysicalCores.getEth()[1])});
 
   auto ethInactiveVector =
       cache.fbb->CreateVectorOfStructs<::tt::target::Dim2d>(
-          {::tt::target::Dim2d(chipCoreMapping.getEthInactive()[0],
-                               chipCoreMapping.getEthInactive()[1])});
+          {::tt::target::Dim2d(chipPhysicalCores.getEthInactive()[0],
+                               chipPhysicalCores.getEthInactive()[1])});
 
-  return ::tt::target::CreateChipCoreMapping(
+  return ::tt::target::CreateChipPhysicalCores(
       *cache.fbb, workerVector, dramVector, ethVector, ethInactiveVector);
 }
 
@@ -222,13 +222,13 @@ inline flatbuffers::Offset<::tt::target::ChipDesc>
 toFlatbuffer(FlatbufferObjectCache &cache, ChipDescAttr chipDesc) {
   assert(chipDesc.getGrid().size() == 2 && "expected a 2D grid");
   auto grid = ::tt::target::Dim2d(chipDesc.getGrid()[0], chipDesc.getGrid()[1]);
-  auto chipCoreMapping = toFlatbuffer(cache, chipDesc.getChipCoreMappings());
+  auto chipPhysicalCores = toFlatbuffer(cache, chipDesc.getChipPhysicalCores());
   return ::tt::target::CreateChipDesc(
       *cache.fbb, toFlatbuffer(cache, chipDesc.getArch()), &grid,
       chipDesc.getL1Size(), chipDesc.getNumDramChannels(),
       chipDesc.getDramChannelSize(), chipDesc.getNocL1AddressAlignBytes(),
       chipDesc.getPcieAddressAlignBytes(),
-      chipDesc.getNocDRAMAddressAlignBytes(), chipCoreMapping);
+      chipDesc.getNocDRAMAddressAlignBytes(), chipPhysicalCores);
 }
 
 inline flatbuffers::Offset<::tt::target::SystemDesc>

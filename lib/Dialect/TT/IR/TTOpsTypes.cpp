@@ -34,7 +34,7 @@ mlir::tt::SystemDescAttr::getDefault(MLIRContext *context) {
           tt::ChipDescAttr::get(
               context, tt::ArchAttr::get(context, tt::Arch::WormholeB0), {8, 8},
               1499136, 12, (1 << 30), 16, 32, 32,
-              tt::ChipCoreMappingAttr::get(context, {0}, {0}, {0}, {0})),
+              tt::ChipPhysicalCoresAttr::get(context, {0}, {0}, {0}, {0})),
       },
       // Chip Descriptor Indices
       {
@@ -79,34 +79,30 @@ mlir::tt::SystemDescAttr::getFromPath(MLIRContext *context, std::string &path) {
   std::vector<tt::ChipDescAttr> chip_desc_list;
   for (auto element : *binary_chip_desc) {
 
-    // Access the chip core mappings from the element
-    auto chip_core_mapping = element->chip_core_mappings();
-    std::vector<int64_t> worker_core_mappings;
-    std::vector<int64_t> dram_core_mappings;
-    std::vector<int64_t> eth_core_mappings;
-    std::vector<int64_t> eth_inactive_core_mappings;
+    std::vector<int64_t> worker_cores, dram_cores, eth_cores,
+        eth_inactive_cores;
+    auto physical_cores = element->physical_cores();
 
-    for (auto const &dim : *chip_core_mapping->worker()) {
-      worker_core_mappings.push_back(dim->y());
-      worker_core_mappings.push_back(dim->x());
+    for (auto const &dim : *physical_cores->worker()) {
+      worker_cores.push_back(dim->y());
+      worker_cores.push_back(dim->x());
     }
-    for (auto const &dim : *chip_core_mapping->dram()) {
-      dram_core_mappings.push_back(dim->y());
-      dram_core_mappings.push_back(dim->x());
+    for (auto const &dim : *physical_cores->dram()) {
+      dram_cores.push_back(dim->y());
+      dram_cores.push_back(dim->x());
     }
-    for (auto const &dim : *chip_core_mapping->eth()) {
-      eth_core_mappings.push_back(dim->y());
-      eth_core_mappings.push_back(dim->x());
+    for (auto const &dim : *physical_cores->eth()) {
+      eth_cores.push_back(dim->y());
+      eth_cores.push_back(dim->x());
     }
-    for (auto const &dim : *chip_core_mapping->eth_inactive()) {
-      eth_inactive_core_mappings.push_back(dim->y());
-      eth_inactive_core_mappings.push_back(dim->x());
+    for (auto const &dim : *physical_cores->eth_inactive()) {
+      eth_inactive_cores.push_back(dim->y());
+      eth_inactive_cores.push_back(dim->x());
     }
 
-    // Create ChipCoreMappingAttr directly from physical Dim2d entries
-    auto chip_core_mapping_attr = tt::ChipCoreMappingAttr::get(
-        context, worker_core_mappings, dram_core_mappings, eth_core_mappings,
-        eth_inactive_core_mappings);
+    // Create ChipPhysicalCoresAttr directly from physical Dim2d entries
+    auto chip_physical_cores_attr = tt::ChipPhysicalCoresAttr::get(
+        context, worker_cores, dram_cores, eth_cores, eth_inactive_cores);
 
     auto current_chip_desc_attr = tt::ChipDescAttr::get(
         context, tt::ArchAttr::get(context, tt::Arch::WormholeB0),
@@ -114,7 +110,7 @@ mlir::tt::SystemDescAttr::getFromPath(MLIRContext *context, std::string &path) {
         element->l1_size(), element->num_dram_channels(),
         element->dram_channel_size(), element->noc_l1_address_align_bytes(),
         element->pcie_address_align_bytes(),
-        element->noc_dram_address_align_bytes(), chip_core_mapping_attr);
+        element->noc_dram_address_align_bytes(), chip_physical_cores_attr);
     chip_desc_list.push_back(current_chip_desc_attr);
   }
 

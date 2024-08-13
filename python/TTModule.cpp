@@ -115,12 +115,13 @@ void populateTTModule(py::module &m) {
                             unsigned nocL1AddressAlignBytes,
                             unsigned pcieAddressAlignBytes,
                             unsigned nocDRAMAddressAlignBytes,
-                            MlirAttribute chipCoreMappings) {
+                            MlirAttribute chipPhysicalCores) {
         return wrap(tt::ChipDescAttr::get(
             unwrap(ctx), mlir::cast<tt::ArchAttr>(unwrap(arch)), grid, l1Size,
             numDramChannels, dramChannelSize, nocL1AddressAlignBytes,
             pcieAddressAlignBytes, nocDRAMAddressAlignBytes,
-            mlir::dyn_cast<tt::ChipCoreMappingAttr>(unwrap(chipCoreMappings))));
+            mlir::dyn_cast<tt::ChipPhysicalCoresAttr>(
+                unwrap(chipPhysicalCores))));
       });
 
   py::class_<tt::ChipCoordAttr>(m, "ChipCoordAttr")

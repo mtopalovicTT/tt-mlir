@@ -55,16 +55,15 @@ def TT_ArchAttr : EnumAttr<TT_Dialect, TT_Arch, "arch"> {
   let assemblyFormat = "`<` $value `>`";
 }
 
-def TT_ChipCoreMappingAttr : TT_Attr<"ChipCoreMapping", "chip_core_mapping"> {
-  let summary = "TT chip_core_mapping attribute";
+def TT_ChipPhysicalCoresAttr : TT_Attr<"ChipPhysicalCores", "chip_physical_cores"> {
+  let summary = "TT chip_physical_cores attribute";
   let description = [{
-    TT chip_core_mapping attribute containing arrays of core mappings by core type.
+    TT chip_physical_cores attribute containing arrays of physical cores by core type in order of logical cores.
   }];
 
   let parameters = (ins ArrayRefParameter<"int64_t">:$worker, ArrayRefParameter<"int64_t">:$dram, ArrayRefParameter<"int64_t">:$eth, ArrayRefParameter<"int64_t">:$eth_inactive);
   let assemblyFormat = "`{` `worker` `=` custom<CoreList>($worker) `,` `dram` `=` custom<CoreList>($dram) `,` `eth` `=` custom<CoreList>($eth) `,` `eth_inactive` `=` custom<CoreList>($eth_inactive) `}`";
 }
-
 
 def TT_ChipDescAttr : TT_Attr<"ChipDesc", "chip_desc"> {
   let summary = "TT chip_desc attribute";
@@ -72,8 +71,8 @@ def TT_ChipDescAttr : TT_Attr<"ChipDesc", "chip_desc"> {
     TT chip_desc attribute
   }];
 
-  let parameters = (ins "ArchAttr":$arch, ArrayRefParameter<"int64_t">:$grid, "unsigned":$l1Size, "unsigned":$numDramChannels, "unsigned":$dramChannelSize, "unsigned":$nocL1AddressAlignBytes, "unsigned":$pcieAddressAlignBytes, "unsigned":$nocDRAMAddressAlignBytes, "ChipCoreMappingAttr":$chipCoreMappings);
-  let assemblyFormat = "`{` `arch` `=` $arch `,` `grid` `=` custom<DimensionList>($grid) `,` `l1_size` `=` $l1Size `,` `num_dram_channels` `=` $numDramChannels `,` `dram_channel_size` `=` $dramChannelSize `,` `noc_l1_address_align_bytes` `=` $nocL1AddressAlignBytes `,` `pcie_address_align_bytes` `=` $pcieAddressAlignBytes `,` `noc_dram_address_align_bytes` `=` $nocDRAMAddressAlignBytes  `,` `core_mappings` `=` $chipCoreMappings  `}`";
+  let parameters = (ins "ArchAttr":$arch, ArrayRefParameter<"int64_t">:$grid, "unsigned":$l1Size, "unsigned":$numDramChannels, "unsigned":$dramChannelSize, "unsigned":$nocL1AddressAlignBytes, "unsigned":$pcieAddressAlignBytes, "unsigned":$nocDRAMAddressAlignBytes, "ChipPhysicalCoresAttr":$chipPhysicalCores);
+  let assemblyFormat = "`{` `arch` `=` $arch `,` `grid` `=` custom<DimensionList>($grid) `,` `l1_size` `=` $l1Size `,` `num_dram_channels` `=` $numDramChannels `,` `dram_channel_size` `=` $dramChannelSize `,` `noc_l1_address_align_bytes` `=` $nocL1AddressAlignBytes `,` `pcie_address_align_bytes` `=` $pcieAddressAlignBytes `,` `noc_dram_address_align_bytes` `=` $nocDRAMAddressAlignBytes  `,` `physical_cores` `=` $chipPhysicalCores  `}`";
 }
 
 def TT_ChipCoordAttr : TT_Attr<"ChipCoord", "chip_coord"> {
@@ -84,16 +83,6 @@ def TT_ChipCoordAttr : TT_Attr<"ChipCoord", "chip_coord"> {
 
   let parameters = (ins "unsigned":$rack, "unsigned":$shelf, "unsigned":$y, "unsigned":$x);
   let assemblyFormat = "`<` $rack `,` $shelf `,` $y `,` $x `>`";
-}
-
-def TT_CoreMappingAttr : TT_Attr<"CoreMapping", "core_mapping"> {
-  let summary = "TT core_mapping attribute";
-  let description = [{
-    TT core_mapping attribute that defines logical and physical core mappings.
-  }];
-
-  let parameters = (ins ArrayRefParameter<"int64_t">:$logical, ArrayRefParameter<"int64_t">:$physical);
-  let assemblyFormat = "`{` custom<DimensionList>($logical) `:` custom<DimensionList>($physical) `}`";
 }
 
 def TT_ChipChannelAttr : TT_Attr<"ChipChannel", "chip_channel"> {

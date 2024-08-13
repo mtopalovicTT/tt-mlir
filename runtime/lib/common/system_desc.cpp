@@ -93,17 +93,16 @@ getAllDeviceConnections(const vector<::tt::tt_metal::Device *> &devices) {
   return allConnections;
 }
 
-// Gather all core mappings for the device using metal device APIs
-static flatbuffers::Offset<::tt::target::ChipCoreMapping>
-createChipCoreMappings(const ::tt::tt_metal::Device *device,
-                       flatbuffers::FlatBufferBuilder &fbb) {
+// Gather all physical cores by type for the device using metal device APIs
+static flatbuffers::Offset<::tt::target::ChipPhysicalCores>
+createChipPhysicalCores(const ::tt::tt_metal::Device *device,
+                        flatbuffers::FlatBufferBuilder &fbb) {
 
-  std::vector<::tt::target::Dim2d> worker_mappings_vec;
-  std::vector<::tt::target::Dim2d> dram_mappings_vec;
-  std::vector<::tt::target::Dim2d> eth_mappings_vec;
-  std::vector<::tt::target::Dim2d> eth_inactive_mappings_vec;
+  std::vector<::tt::target::Dim2d> worker_cores;
+  std::vector<::tt::target::Dim2d> dram_cores;
+  std::vector<::tt::target::Dim2d> eth_cores;
+  std::vector<::tt::target::Dim2d> eth_inactive_cores;
 
-  // Worker core mappings
   auto logical_grid_size = device->logical_grid_size();
   for (uint32_t y = 0; y < logical_grid_size.y; y++) {
     for (uint32_t x = 0; x < logical_grid_size.x; x++) {
@@ -111,12 +110,10 @@ createChipCoreMappings(const ::tt::tt_metal::Device *device,
       std::cout << "KCM Worker core logical y: " << y << ", x: " << x
                 << " -> physical y: " << physical.y << ", x: " << physical.x
                 << std::endl;
-      worker_mappings_vec.emplace_back(
-          ::tt::target::Dim2d(physical.y, physical.x));
+      worker_cores.emplace_back(::tt::target::Dim2d(physical.y, physical.x));
     }
   }
 
-  // DRAM core mappings
   auto dram_grid_size = device->dram_grid_size();
   for (uint32_t y = 0; y < dram_grid_size.y; y++) {
     for (uint32_t x = 0; x < dram_grid_size.x; x++) {
@@ -124,12 +121,10 @@ createChipCoreMappings(const ::tt::tt_metal::Device *device,
       std::cout << "KCM DRAM core logical y: " << y << ", x: " << x
                 << " -> physical y: " << physical.y << ", x: " << physical.x
                 << std::endl;
-      dram_mappings_vec.emplace_back(
-          ::tt::target::Dim2d(physical.y, physical.x));
+      dram_cores.emplace_back(::tt::target::Dim2d(physical.y, physical.x));
     }
   }
 
-  // Ethernet core mappings
   auto all_eth_cores(device->get_active_ethernet_cores());
   all_eth_cores.insert(device->get_inactive_ethernet_cores().begin(),
                        device->get_inactive_ethernet_cores().end());
@@ -139,38 +134,29 @@ createChipCoreMappings(const ::tt::tt_metal::Device *device,
     std::cout << "KCM ETH core logical y: " << logical.y << ", x: " << logical.x
               << " -> physical y: " << physical.y << ", x: " << physical.x
               << std::endl;
-    eth_mappings_vec.emplace_back(::tt::target::Dim2d(physical.y, physical.x));
+    eth_cores.emplace_back(::tt::target::Dim2d(physical.y, physical.x));
   }
 
-  // Ethernet core mappings (inactive)
   for (const auto &logical : device->get_inactive_ethernet_cores()) {
     auto physical = device->ethernet_core_from_logical_core(logical);
     std::cout << "KCM ETH_INACTIVE core logical y: " << logical.y
               << ", x: " << logical.x << " -> physical y: " << physical.y
               << ", x: " << physical.x << std::endl;
-    eth_inactive_mappings_vec.emplace_back(
+    eth_inactive_cores.emplace_back(
         ::tt::target::Dim2d(physical.y, physical.x));
   }
 
   // Debug - Remove before merge.
-  std::cout << "Done getting mappings for device: " << device->id()
-            << " Worker: " << worker_mappings_vec.size()
-            << ", DRAM: " << dram_mappings_vec.size()
-            << ", ETH: " << eth_mappings_vec.size()
-            << ", ETH_INACTIVE: " << eth_inactive_mappings_vec.size()
-            << std::endl;
+  std::cout << "Done getting physical cores for device: " << device->id()
+            << " Worker: " << worker_cores.size()
+            << ", DRAM: " << dram_cores.size() << ", ETH: " << eth_cores.size()
+            << ", ETH_INACTIVE: " << eth_cores.size() << std::endl;
 
-  // Create fb CoreMapping vectors and ChipCoreMapping table.
-  auto workerCoreMappings = fbb.CreateVectorOfStructs(worker_mappings_vec);
-  auto dramCoreMappings = fbb.CreateVectorOfStructs(dram_mappings_vec);
-  auto ethCoreMappings = fbb.CreateVectorOfStructs(eth_mappings_vec);
-  auto ethInactiveCoreMappings =
-      fbb.CreateVectorOfStructs(eth_inactive_mappings_vec);
-  auto chipCoreMapping = ::tt::target::CreateChipCoreMapping(
-      fbb, workerCoreMappings, dramCoreMappings, ethCoreMappings,
-      ethInactiveCoreMappings);
-
-  return chipCoreMapping;
+  return ::tt::target::CreateChipPhysicalCores(
+      fbb, fbb.CreateVectorOfStructs(worker_cores),
+      fbb.CreateVectorOfStructs(dram_cores),
+      fbb.CreateVectorOfStructs(eth_cores),
+      fbb.CreateVectorOfStructs(eth_inactive_cores));
 }
 
 static std::unique_ptr<::tt::runtime::SystemDesc>
@@ -193,14 +179,14 @@ getCurrentSystemDescImpl(const ::tt::tt_metal::DeviceMesh &deviceMesh) {
     ::tt::target::Dim2d deviceGrid =
         toFlatbuffer(device->compute_with_storage_grid_size());
 
-    // Extract core mappings for worker, dram, eth core
-    auto chipCoreMappings = createChipCoreMappings(device, fbb);
+    // Extract physical core coordinates for worker, dram, eth cores
+    auto chipPhysicalCores = createChipPhysicalCores(device, fbb);
 
     chipDescs.push_back(::tt::target::CreateChipDesc(
         fbb, toFlatbuffer(device->arch()), &deviceGrid,
         device->l1_size_per_core(), device->num_dram_channels(),
         device->dram_size_per_channel(), L1_ALIGNMENT, PCIE_ALIGNMENT,
-        DRAM_ALIGNMENT, chipCoreMappings));
+        DRAM_ALIGNMENT, chipPhysicalCores));
     chipDescIndices.push_back(device->id());
     // Derive chip capability
     ::tt::target::ChipCapability chipCapability =
