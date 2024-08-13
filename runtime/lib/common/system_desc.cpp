@@ -102,7 +102,6 @@ createChipCoreMappings(const ::tt::tt_metal::Device *device,
   std::vector<::tt::target::Dim2d> dram_mappings_vec;
   std::vector<::tt::target::Dim2d> eth_mappings_vec;
 
-  // FIXME - Print this, then flip and see how it looks.
   // Worker core mappings
   auto logical_grid_size = device->logical_grid_size();
   for (uint32_t y = 0; y < logical_grid_size.y; y++) {
