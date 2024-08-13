@@ -102,23 +102,30 @@ createChipCoreMappings(const ::tt::tt_metal::Device *device,
   std::vector<::tt::target::Dim2d> dram_mappings_vec;
   std::vector<::tt::target::Dim2d> eth_mappings_vec;
 
+  // FIXME - Print this, then flip and see how it looks.
   // Worker core mappings
   auto logical_grid_size = device->logical_grid_size();
-  for (uint32_t x = 0; x < logical_grid_size.x; x++) {
-    for (uint32_t y = 0; y < logical_grid_size.y; y++) {
+  for (uint32_t y = 0; y < logical_grid_size.y; y++) {
+    for (uint32_t x = 0; x < logical_grid_size.x; x++) {
       auto physical = device->worker_core_from_logical_core(CoreCoord(x, y));
+      std::cout << "KCM Worker core logical y: " << y << ", x: " << x
+                << " -> physical y: " << physical.y << ", x: " << physical.x
+                << std::endl;
       worker_mappings_vec.emplace_back(
-          ::tt::target::Dim2d(physical.x, physical.y));
+          ::tt::target::Dim2d(physical.y, physical.x));
     }
   }
 
   // DRAM core mappings
   auto dram_grid_size = device->dram_grid_size();
-  for (uint32_t x = 0; x < dram_grid_size.x; x++) {
-    for (uint32_t y = 0; y < dram_grid_size.y; y++) {
+  for (uint32_t y = 0; y < dram_grid_size.y; y++) {
+    for (uint32_t x = 0; x < dram_grid_size.x; x++) {
       auto physical = device->dram_core_from_logical_core(CoreCoord(x, y));
+      std::cout << "KCM DRAM core logical y: " << y << ", x: " << x
+                << " -> physical y: " << physical.y << ", x: " << physical.x
+                << std::endl;
       dram_mappings_vec.emplace_back(
-          ::tt::target::Dim2d(physical.x, physical.y));
+          ::tt::target::Dim2d(physical.y, physical.x));
     }
   }
 
@@ -129,7 +136,10 @@ createChipCoreMappings(const ::tt::tt_metal::Device *device,
 
   for (const auto &logical : all_eth_cores) {
     auto physical = device->ethernet_core_from_logical_core(logical);
-    eth_mappings_vec.emplace_back(::tt::target::Dim2d(physical.x, physical.y));
+    std::cout << "KCM ETH core logical y: " << logical.y << ", x: " << logical.x
+              << " -> physical y: " << physical.y << ", x: " << physical.x
+              << std::endl;
+    eth_mappings_vec.emplace_back(::tt::target::Dim2d(physical.y, physical.x));
   }
 
   // Debug - Remove before merge.

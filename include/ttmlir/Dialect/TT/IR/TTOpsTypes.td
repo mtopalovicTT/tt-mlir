@@ -62,7 +62,7 @@ def TT_ChipCoreMappingAttr : TT_Attr<"ChipCoreMapping", "chip_core_mapping"> {
   }];
 
   let parameters = (ins ArrayRefParameter<"int64_t">:$worker, ArrayRefParameter<"int64_t">:$dram, ArrayRefParameter<"int64_t">:$eth);
-  let assemblyFormat = "`{` `worker` `=` custom<DimensionList>($worker) `,` `dram` `=` custom<DimensionList>($dram) `,` `eth` `=` custom<DimensionList>($eth) `}`";
+  let assemblyFormat = "`{` `worker` `=` custom<CoreList>($worker) `,` `dram` `=` custom<CoreList>($dram) `,` `eth` `=` custom<CoreList>($eth) `}`";
 }
 
 
