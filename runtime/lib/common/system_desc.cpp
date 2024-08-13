@@ -153,7 +153,7 @@ createChipCoreMappings(const ::tt::tt_metal::Device *device,
   auto dramCoreMappings = fbb.CreateVectorOfStructs(dram_mappings_vec);
   auto ethCoreMappings = fbb.CreateVectorOfStructs(eth_mappings_vec);
   auto chipCoreMapping = ::tt::target::CreateChipCoreMapping(
-      fbb, workerCoreMappings, ethCoreMappings, dramCoreMappings);
+      fbb, workerCoreMappings, dramCoreMappings, ethCoreMappings);
 
   return chipCoreMapping;
 }

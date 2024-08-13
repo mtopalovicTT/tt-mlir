@@ -120,8 +120,8 @@ struct ChipChannel {
 
 table ChipCoreMapping {
   worker: [Dim2d];
-  eth: [Dim2d];
   dram: [Dim2d];
+  eth: [Dim2d];
 }
 
 table SystemDesc {
