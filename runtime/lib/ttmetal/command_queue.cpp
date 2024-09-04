@@ -176,6 +176,17 @@ static ::tt::DataFormat toDataFormat(::tt::target::DataType dataType) {
   }
 }
 
+// Convert from Flatbuffer CoreType to soc_descriptor CoreType.
+static CoreType toCoreType(::tt::target::metal::CoreType coreType) {
+  switch (coreType) {
+  case ::tt::target::metal::CoreType::WORKER:
+    return CoreType::WORKER;
+  case ::tt::target::metal::CoreType::ETH:
+    return CoreType::ETH;
+  }
+  throw std::runtime_error("Unsupported core type");
+}
+
 static ::tt::tt_metal::CircularBufferConfig createCircularBufferConfig(
     ::tt::target::CBRef const *cbRef,
     std::unordered_map<std::uint32_t,
@@ -192,11 +203,63 @@ static ::tt::tt_metal::CircularBufferConfig createCircularBufferConfig(
       .set_page_size(cbRef->desc()->port(), cbRef->desc()->page_size());
 }
 
+// Process various types of runtime args and call Metal APIs.
+static void ProcessRuntimeArgs(
+    ::tt::tt_metal::Program &program,
+    ::tt::target::metal::KernelDesc const *kernelDesc,
+    ::tt::tt_metal::KernelHandle &handle, CoreRangeSet &coreRange,
+    const ::flatbuffers::Vector<::flatbuffers::Offset<tt::target::TensorRef>>
+        *operands,
+    std::unordered_map<std::uint32_t,
+                       std::shared_ptr<::tt::tt_metal::Buffer>> const
+        &buffers) {
+
+  const auto *runtime_args_types = kernelDesc->runtime_args_type();
+  const auto *runtime_args = kernelDesc->runtime_args();
+  assert(runtime_args_types->size() == runtime_args->size());
+  if (!runtime_args)
+    return;
+
+  std::vector<uint32_t> rt_args_vec;
+  for (size_t i = 0; i < runtime_args->size(); i++) {
+
+    switch (runtime_args_types->Get(i)) {
+    case ::tt::target::metal::RuntimeArg::RuntimeArgTensorAddress: {
+      const auto *rt_arg =
+          static_cast<const ::tt::target::metal::RuntimeArgTensorAddress *>(
+              runtime_args->Get(i));
+
+      assert(rt_arg->operand_idx() < operands->size() && "invalid operand");
+      uint32_t global_id = operands->Get(rt_arg->operand_idx())->global_id();
+      uint32_t addr = buffers.at(global_id)->address();
+      rt_args_vec.push_back(addr);
+      break;
+    }
+    case ::tt::target::metal::RuntimeArg::RuntimeArgSemaphoreAddress: {
+      const auto *rt_arg =
+          static_cast<const ::tt::target::metal::RuntimeArgSemaphoreAddress *>(
+              runtime_args->Get(i));
+      auto addr = ::tt::tt_metal::CreateSemaphore(
+          program, coreRange, rt_arg->initial_value(),
+          toCoreType(rt_arg->core_type()));
+      rt_args_vec.push_back(addr);
+      break;
+    }
+    case ::tt::target::metal::RuntimeArg::NONE:
+      throw std::runtime_error("Unsupported runtime arg type");
+    }
+  }
+
+  ::tt::tt_metal::SetRuntimeArgs(program, handle, coreRange, rt_args_vec);
+}
+
 void CQExecutor::execute(
     ::tt::target::metal::EnqueueProgramCommand const *command) {
   static int gKernelId = 0;
 
   ::tt::tt_metal::Program program = ::tt::tt_metal::CreateProgram();
+  std::cout << "KCM Starting CQExecutor::execute() w/ "
+            << command->program()->kernels()->size() << " kernels" << std::endl;
 
   for (::tt::target::metal::KernelDesc const *kernelDesc :
        *command->program()->kernels()) {
@@ -214,13 +277,16 @@ void CQExecutor::execute(
         createKernelConfig(kernelSource);
     ::tt::tt_metal::KernelHandle handle =
         ::tt::tt_metal::CreateKernel(program, fileName, coreRange, config);
-    (void)handle; // only needed for runtime args, which aren't supported yet
 
     for (::tt::target::CBRef const *cbRef : *kernelDesc->cbs()) {
       ::tt::tt_metal::CircularBufferConfig config =
           createCircularBufferConfig(cbRef, buffers);
       ::tt::tt_metal::CreateCircularBuffer(program, coreRange, config);
     }
+
+    // Process Kernel's runtime args based on variant and call metal APIs.
+    ProcessRuntimeArgs(program, kernelDesc, handle, coreRange,
+                       command->operands(), buffers);
   }
 
   constexpr bool blocking = false;

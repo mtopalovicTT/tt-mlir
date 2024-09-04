@@ -25,6 +25,7 @@
 #include "ttmlir/Target/Utils/FlatbufferObjectCache.h"
 #include "ttmlir/Target/Utils/MLIRToFlatbuffer.h"
 #include "ttmlir/Version.h"
+#include <iostream>
 
 namespace mlir::tt::ttmetal {
 
@@ -107,6 +108,43 @@ Value getOperandThroughDPSOps(Value value) {
   return value;
 }
 
+// Temporary until compiler support added for runtime args.
+void gen_dummy_runtime_args(
+    ::flatbuffers::FlatBufferBuilder &fbb,
+    std::vector<::tt::target::metal::RuntimeArg> &rt_args_types,
+    std::vector<::flatbuffers::Offset<void>> &rt_args) {
+
+  const uint32_t num_tensor_addrs = 2;
+  for (uint32_t i = 0; i < num_tensor_addrs; i++) {
+    auto operand_idx = i;
+    auto fb_rt_arg =
+        ::tt::target::metal::CreateRuntimeArgTensorAddress(fbb, operand_idx);
+    auto type = ::tt::target::metal::RuntimeArg::RuntimeArgTensorAddress;
+    rt_args_types.push_back(type);
+    rt_args.push_back(fb_rt_arg.Union());
+    std::cout << "KCM Dummy RTArg: "
+              << ::tt::target::metal::EnumNameRuntimeArg(type)
+              << " operand_idx: " << operand_idx
+              << " rt_args_size: " << rt_args.size() << std::endl;
+  }
+
+  const uint32_t num_sems = 2;
+  for (uint32_t i = 0; i < num_sems; i++) {
+    uint32_t initial_value = 10 + i;
+    auto core_type = i % 2 ? ::tt::target::metal::CoreType::WORKER
+                           : ::tt::target::metal::CoreType::ETH;
+    auto fb_rt_arg = ::tt::target::metal::CreateRuntimeArgSemaphoreAddress(
+        fbb, initial_value, core_type);
+    auto type = ::tt::target::metal::RuntimeArg::RuntimeArgSemaphoreAddress;
+    std::cout << "KCM Dummy RTArg: "
+              << ::tt::target::metal::EnumNameRuntimeArg(type)
+              << " initial_value: " << initial_value
+              << " rt_args_size: " << rt_args.size() << std::endl;
+    rt_args_types.push_back(type);
+    rt_args.push_back(fb_rt_arg.Union());
+  }
+}
+
 static std::shared_ptr<void> translateModuleToFlatbuffer(Operation *op) {
   ::flatbuffers::FlatBufferBuilder fbb;
   FlatbufferObjectCache cache(&fbb);
@@ -162,6 +200,9 @@ static std::shared_ptr<void> translateModuleToFlatbuffer(Operation *op) {
         assert(success.succeeded() &&
                "failed to emit dispatch op regions as cpp");
 
+        std::cout << "\t\tKCM DispatchOp with " << dispatchOp->getNumRegions()
+                  << " regions" << std::endl;
+        uint32_t region_idx = 0;
         for (auto &region : dispatchOp.getRegions()) {
           auto threadType =
               mlir::cast<ttkernel::ThreadTypeAttr>(
@@ -184,12 +225,25 @@ static std::shared_ptr<void> translateModuleToFlatbuffer(Operation *op) {
           std::string &source = cppKernels[region.getRegionNumber()];
           assert(source.size() > 0 && "empty kernel source");
 
+          // Temporary until compiler support added for runtime args.
+          std::vector<::tt::target::metal::RuntimeArg> runtime_args_type;
+          std::vector<::flatbuffers::Offset<void>> runtime_args;
+          gen_dummy_runtime_args(fbb, runtime_args_type, runtime_args);
+
           kernels.push_back(::tt::target::metal::CreateKernelDescDirect(
               fbb, ::tt::target::metal::Kernel::KernelSource,
               ::tt::target::metal::CreateKernelSourceDirect(
                   fbb, toFlatbuffer(threadType), source.c_str())
                   .Union(),
-              &coreRangeSet, &cbs, nullptr /*TODO debug info*/));
+              &coreRangeSet, &cbs, &runtime_args_type, &runtime_args,
+              nullptr /*TODO debug info*/));
+
+          std::cout << "\t\tKCM Creating kernel source for region_idx: "
+                    << region_idx++ << " for "
+                    << dispatchOp->getName().getStringRef().str()
+                    << " w/ rt_args_size: " << runtime_args.size()
+                    << " pushing to kernels size: " << kernels.size()
+                    << std::endl;
         }
         ::flatbuffers::Offset<::tt::target::metal::ProgramDesc> program =
             ::tt::target::metal::CreateProgramDescDirect(fbb, &kernels);
