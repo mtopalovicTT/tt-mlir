@@ -6,6 +6,7 @@
 #include "tt/runtime/utils.h"
 #include "ttmlir/Target/TTNN/Target.h"
 #include "ttmlir/Version.h"
+#include <iostream>
 
 #if defined(TT_RUNTIME_ENABLE_TTNN)
 #include "tt/runtime/detail/ttnn.h"
@@ -58,8 +59,10 @@ std::vector<DeviceRuntime> getAvailableRuntimes() {
   std::vector<DeviceRuntime> runtimes;
 #if defined(TT_RUNTIME_ENABLE_TTNN)
   runtimes.push_back(DeviceRuntime::TTNN);
+  std::cout << "KCM TTNN runtime enabled" << std::endl;
 #endif
 #if defined(TT_RUNTIME_ENABLE_TTMETAL)
+  std::cout << "KCM TTMETAL runtime enabled" << std::endl;
   runtimes.push_back(DeviceRuntime::TTMetal);
 #endif
   return runtimes;

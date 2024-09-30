@@ -43,6 +43,8 @@ private:
 };
 
 void ProgramExecutor::runOperation(const ::tt::target::ttnn::Operation *op) {
+
+  std::cout << "Running operation: " << EnumNameOpType(op->type_type()) << std::endl;
   switch (op->type_type()) {
   case ::tt::target::ttnn::OpType::GetDeviceOp: {
     return operations::context::run(op->type_as_GetDeviceOp(), context);

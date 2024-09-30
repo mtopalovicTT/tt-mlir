@@ -87,6 +87,10 @@ CQExecutor::execute(::tt::target::metal::CommandQueue const *commandQueue) {
 }
 
 void CQExecutor::execute(::tt::target::metal::Command const *command) {
+
+  // KCM - Add debug statement here.
+  std::cout << "Calling execute for command: " << EnumNameCommandType(command->type_type()) << std::endl;
+
   switch (command->type_type()) {
   case ::tt::target::metal::CommandType::EnqueueProgramCommand: {
     execute(command->type_as_EnqueueProgramCommand(),
@@ -408,40 +412,24 @@ static void processRuntimeArgs(
   ::tt::tt_metal::SetRuntimeArgs(program, handle, coreRange, rt_args_vec);
 }
 
-void CQExecutor::execute(
-    ::tt::target::metal::EnqueueProgramCommand const *command,
-    char const *debugInfo) {
-
-  ZoneScopedN("EnqueueProgramCommand");
+void CQExecutor::execute(::tt::target::metal::EnqueueProgramCommand const *command,char const *debugInfo) {
   ::tt::tt_metal::Program program = ::tt::tt_metal::CreateProgram();
 
-  for (::tt::target::metal::KernelDesc const *kernelDesc :
-       *command->program()->kernels()) {
-    ::tt::target::metal::KernelSource const *kernelSource =
-        kernelDesc->kernel_as_KernelSource();
+  for (::tt::target::metal::KernelDesc const *kernelDesc : *command->program()->kernels()) {
+    ::tt::target::metal::KernelSource const *kernelSource = kernelDesc->kernel_as_KernelSource();
     assert(kernelSource && "Only source kernels supported for now");
     CoreRangeSet coreRangeSet = toCoreRangeSet(kernelDesc->core_range_set());
-    // We need a new API to create a kernel from source string, or directly from
-    // binary
-    std::string fileName = createKernelFilePath(currentProgramName, debugInfo,
-                                                coreRangeSet, kernelSource);
-    writeFile(fileName, kernelSource->source()->c_str(),
-              kernelSource->source()->size());
-    std::variant<DataMovementConfig, ComputeConfig, EthernetConfig> config =
-        createKernelConfig(kernelSource);
-
-    ::tt::tt_metal::KernelHandle handle =
-        ::tt::tt_metal::CreateKernel(program, fileName, coreRangeSet, config);
+    std::string fileName = createKernelFilePath(currentProgramName, debugInfo, coreRangeSet, kernelSource);
+    writeFile(fileName, kernelSource->source()->c_str(), kernelSource->source()->size());
+    std::variant<DataMovementConfig, ComputeConfig, EthernetConfig> config = createKernelConfig(kernelSource);
+    ::tt::tt_metal::KernelHandle handle = ::tt::tt_metal::CreateKernel(program, fileName, coreRangeSet, config);
 
     for (::tt::target::CBRef const *cbRef : *kernelDesc->cbs()) {
-      ::tt::tt_metal::CircularBufferConfig config =
-          createCircularBufferConfig(cbRef, buffers);
+      ::tt::tt_metal::CircularBufferConfig config = createCircularBufferConfig(cbRef, buffers);
       ::tt::tt_metal::CreateCircularBuffer(program, coreRangeSet, config);
     }
-
     // Process Kernel's runtime args based on variant and call metal APIs.
-    processRuntimeArgs(program, kernelDesc, handle, coreRangeSet,
-                       command->operands(), buffers);
+    processRuntimeArgs(program, kernelDesc, handle, coreRangeSet, command->operands(), buffers);
   }
 
   constexpr bool blocking = false;
