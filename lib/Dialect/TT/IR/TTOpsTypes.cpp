@@ -598,14 +598,6 @@ uint64_t LayoutAttr::getElementSizeBytes() const {
   return elementType.getIntOrFloatBitWidth() / 8;
 }
 
-uint64_t LayoutAttr::getMemrefSizeBytes() const {
-  MemRefType ty = getMemref();
-  auto shape = ty.getShape();
-  uint64_t size = getElementSizeBytes();
-  return std::accumulate(shape.begin(), shape.end(), size,
-                         std::multiplies<uint64_t>());
-}
-
 LayoutAttr LayoutAttr::withGrid(
     ::mlir::MLIRContext *context, ArrayRef<int64_t> tensorShape, GridAttr grid,
     ArrayRef<std::pair<std::int64_t, std::int64_t>> collapseIntervals) {
@@ -720,7 +712,8 @@ mlir::AffineMap LayoutAttr::replaceMemoryMapSymbolsWithShardShape(
 // mapping.
 mlir::AffineMap
 LayoutAttr::projectOnto(mlir::AffineMap linearMap,
-                        mlir::AffineMap physicalMemoryMap) const {
+                        mlir::AffineMap physicalMemoryMap,
+                        llvm::ArrayRef<int64_t> logicalTensorShape) const {
   assert(getGrid().getShape().size() == physicalMemoryMap.getNumDims() &&
          "Layout and device grids must have same number of dimensions");
   assert(getLinear().getNumResults() == physicalMemoryMap.getNumDims() &&
