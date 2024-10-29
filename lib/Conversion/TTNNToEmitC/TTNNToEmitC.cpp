@@ -616,6 +616,7 @@ void populateTTNNToEmitCPatterns(mlir::MLIRContext *ctx,
   //
   patterns.add<DefaultOpConversionPattern<ttnn::AbsOp>,
                DefaultOpConversionPattern<ttnn::CbrtOp>,
+               DefaultOpConversionPattern<ttnn::ClampOp>,
                DefaultOpConversionPattern<ttnn::FloorOp>,
                DefaultOpConversionPattern<ttnn::IsFiniteOp>,
                DefaultOpConversionPattern<ttnn::LogicalNotOp>,
