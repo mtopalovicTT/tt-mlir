@@ -211,7 +211,6 @@ func.func @typecast(%arg0: tensor<64x128xf32>) -> tensor<64x128xbf16> {
   return %1 : tensor<64x128xbf16>
 }
 
-<<<<<<< HEAD
 func.func @log(%arg0: tensor<64x128xf32>, %arg1: tensor<64x128xf32>) -> tensor<64x128xf32> {
   // CHECK: %[[C:.*]] = "ttnn.empty"[[C:.*]]
   %0 = tensor.empty() : tensor<64x128xf32>
@@ -277,13 +276,5 @@ func.func @tanh(%arg0: tensor<64x128xf32>) -> tensor<64x128xbf16> {
   // CHECK: [[VAL0:%[0-9]+]] = "ttnn.empty"(%{{[0-9]+}})
   // CHECK: %{{[0-9]+}} = "ttnn.tanh"(%{{[0-9]+}}, [[VAL0]])
   %1 = "ttir.tanh"(%arg0, %0) <{operandSegmentSizes = array<i32: 1, 1>, operand_constraints = [#any_device, #any_device]}> : (tensor<64x128xf32>, tensor<64x128xbf16>) -> tensor<64x128xbf16>
-  return %1 : tensor<64x128xbf16>
-}
-
-func.func @log(%arg0: tensor<64x128xf32>) -> tensor<64x128xbf16> {
-  %0 = tensor.empty() : tensor<64x128xbf16>
-  // CHECK: [[VAL0:%[0-9]+]] = "ttnn.empty"(%{{[0-9]+}})
-  // CHECK: %{{[0-9]+}} = "ttnn.log"(%{{[0-9]+}}, [[VAL0]])
-  %1 = "ttir.log"(%arg0, %0) <{operandSegmentSizes = array<i32: 1, 1>, operand_constraints = [#any_device, #any_device]}> : (tensor<64x128xf32>, tensor<64x128xbf16>) -> tensor<64x128xbf16>
   return %1 : tensor<64x128xbf16>
 }

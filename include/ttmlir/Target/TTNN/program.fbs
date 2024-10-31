@@ -93,7 +93,7 @@ enum EltwiseOpType: uint32 {
   Remainder = 32,
   IsFinite = 33,
   Floor = 34,
-  Logistic = 35,
+  Logit = 35,
   Tan = 36,
   Tanh = 37,
 }
