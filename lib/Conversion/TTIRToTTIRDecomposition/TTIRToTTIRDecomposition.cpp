@@ -401,6 +401,123 @@ public:
                                              adaptor.getOperandConstraints());
 
     rewriter.replaceOp(op, output);
+    return success();
+  }
+};
+//===----------------------------------------------------------------------===//
+// Gather Pattern Matching
+//===----------------------------------------------------------------------===//
+
+struct GatherToEmbeddingConversionPattern
+    : public OpConversionPattern<ttir::GatherOp> {
+  using OpConversionPattern<ttir::GatherOp>::OpConversionPattern;
+
+  LogicalResult checkBasicLegality(ttir::GatherOp op,
+                                   PatternRewriter &rewriter) const {
+    // variables for embedding pattern matching checks
+    auto outputType = mlir::cast<RankedTensorType>(op.getResult().getType());
+    auto shape = outputType.getShape();
+    auto startIndices = op.getStartIndices(); // start indices of the gather op
+    auto startIndicesType =
+        mlir::cast<RankedTensorType>(startIndices.getType());
+    auto sliceSizes = op.getSliceSizes(); // slice sizes of the gather op
+    auto offsetDims = op.getOffsetDims();
+    auto collapsedSliceDims =
+        op.getCollapsedSliceDims(); // collapsed slice dims of the gather op
+
+    if (shape.size() > 1) {
+      auto hiddenDim = shape[shape.size() - 1];
+      assert(sliceSizes.size() > 1 &&
+             "sliceSizes should have at least 2 elements");
+      // check if sliceSizes is [1, hiddenDim]
+      if (sliceSizes[0] != 1 || sliceSizes[1] != hiddenDim) {
+        return rewriter.notifyMatchFailure(op, "Did not satisfy sliceSizes");
+      }
+    }
+
+    // check if offsetDims is [2]
+    if (std::vector<int64_t>(offsetDims.begin(), offsetDims.end()) !=
+        std::vector<int64_t>{2}) {
+      return rewriter.notifyMatchFailure(op, "Did not satisfy offsetDims");
+    }
+
+    // check if collapsedSliceDims is [0]
+    if (std::vector<int64_t>(collapsedSliceDims.begin(),
+                             collapsedSliceDims.end()) !=
+        std::vector<int64_t>{0}) {
+      return rewriter.notifyMatchFailure(op,
+                                         "Did not satisfy collapsedSliceDims");
+    }
+
+    // check if startIndices and output have same shape, if not, check if
+    // reshape is possible can reshape startIndices to remove the last dimension
+    // if it is 1
+    if (shape.size() == startIndicesType.getShape().size() &&
+        startIndicesType.getShape()[shape.size() - 1] != 1) {
+      return rewriter.notifyMatchFailure(op,
+                                         "Did not satisfy startIndicesType");
+    }
+
+    return success();
+  }
+  ttir::ReshapeOp createReshapeOp(PatternRewriter &rewriter, Location loc,
+                                  Value input,
+                                  ::llvm::ArrayRef<int64_t> shapei64,
+                                  ::mlir::ArrayAttr operandConstraints) const {
+
+    // reshape start indices (input) to remove the last dimension
+    auto ty = mlir::cast<RankedTensorType>(input.getType());
+    auto output = rewriter.create<tensor::EmptyOp>(
+        loc, llvm::ArrayRef<int64_t>(shapei64), ty.getElementType());
+    std::vector<int32_t> shapei32(shapei64.begin(), shapei64.end());
+    auto shape_attr = rewriter.getI32ArrayAttr(shapei32);
+
+    return rewriter.create<ttir::ReshapeOp>(
+        loc, mlir::RankedTensorType::get(shapei64, ty.getElementType()), input,
+        output, shape_attr, operandConstraints);
+  }
+  LogicalResult
+  matchAndRewrite(ttir::GatherOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    LogicalResult err = checkBasicLegality(op, rewriter);
+    if (not err.succeeded()) {
+      return err;
+    }
+    auto outputType = mlir::cast<RankedTensorType>(op.getResult().getType());
+    auto shape = outputType.getShape();
+    auto startIndices = op.getStartIndices(); // start indices of the gather op
+    auto startIndicesType =
+        mlir::cast<RankedTensorType>(startIndices.getType());
+    ::mlir::Value input = op.getStartIndices();
+    if (shape.size() == startIndicesType.getShape().size() &&
+        startIndicesType.getShape()[shape.size() - 1] == 1) {
+      // reduce weight tensor dimension
+      // insert reshape op to remove the last dimension of start indices
+      // before gather/ embedding op
+      std::vector<int64_t> newShapeI64(startIndicesType.getShape().begin(),
+                                       startIndicesType.getShape().end() - 1);
+
+      ttir::ReshapeOp reshapeOp =
+          createReshapeOp(rewriter, op.getLoc(), startIndices, newShapeI64,
+                          op.getOperandConstraints());
+
+      assert(reshapeOp && "Failed to create reshape op");
+      reshapeOp->moveBefore(op);
+      input = reshapeOp.getResult();
+    }
+
+    ttir::EmbeddingOp embeddingOp = rewriter.create<ttir::EmbeddingOp>(
+        op.getLoc(), op.getResult().getType(),
+        input,               // input - start indices
+        op.getOperands()[0], // weight - input tensor
+        op.getOutput(),
+        rewriter.getArrayAttr( // operand constraints
+            SmallVector<Attribute>(op.getNumOperands() + 1,
+                                   rewriter.getAttr<OperandConstraintAttr>(
+                                       OperandConstraint::AnyDeviceTile))));
+
+    assert(embeddingOp != nullptr && "Failed to create embedding op");
+    rewriter.replaceOp(op, embeddingOp);
 
     return success();
   }
@@ -440,6 +557,7 @@ void populateTTIRToTTIRDecompositionPatterns(MLIRContext *ctx,
   patterns.add<IndexToSliceConversionPattern>(typeConverter, ctx);
   patterns.add<ConvolutionToConv2dPattern>(typeConverter, ctx);
   patterns.add<GetDimensionSizeToConstantConversionPattern>(typeConverter, ctx);
+  patterns.add<GatherToEmbeddingConversionPattern>(typeConverter, ctx);
 }
 
 } // namespace mlir::tt

@@ -723,10 +723,32 @@ def TTIR_ConvolutionOp : TTIR_DPSOp<"convolution"> {
   let hasVerifier = 1;
 
   let extraClassDeclaration = [{
+    MutableOperandRange getDpsInitsMutable() { return getOutputMutable(); }
+  }];
+}
+
+def TTIR_GatherOp: TTIR_DPSOp<"gather"> {
+    let summary = "Gather operation.";
+    let description = [{
+      Gather operation.
+    }];
+    let arguments = (ins AnyRankedTensor:$input, // operand
+                         AnyRankedTensor:$start_indices, // start_indices
+                         AnyRankedTensor:$output, // result
+                         DenseI64ArrayAttr:$offset_dims, // offset_dims
+                         DenseI64ArrayAttr:$collapsed_slice_dims, // collapsed_slice_dims
+                         DenseI64ArrayAttr:$operand_batching_dims, // operand_batching_dims
+                         DenseI64ArrayAttr:$start_indices_batching_dims, // start_indices_batching_dims
+                         DenseI64ArrayAttr:$start_index_map, // start_index_map
+                         SI64Attr:$index_vector_dim, // index_vector_dim
+                         DenseI64ArrayAttr:$slice_sizes, // slice_sizes
+                         BoolAttr:$indices_are_sorted, // indices_are_sorted (bool)
+                         TT_OperandConstraintArrayAttr:$operand_constraints);
+    let results = (outs AnyRankedTensor:$result);
+    let extraClassDeclaration = [{
       MutableOperandRange getDpsInitsMutable() { return getOutputMutable(); }
     }];
 }
-
 
 def TTIR_MaxPool2dOp : TTIR_DPSOp<"max_pool2d"> {
     let summary = "Applies a 2D max pooling over an input signal composed of several input planes.";
