@@ -197,6 +197,13 @@ def TTNN_ExpOp : TTNN_ElementwiseUnaryOp<"exp"> {
     }];
 }
 
+def TTNN_GeluOp: TTNN_ElementwiseUnaryOp<"gelu"> {
+  let summary = "Eltwise GELU.";
+  let description = [{
+    Eltwise GELU operation.
+  }];
+}
+
 def TTNN_LogicalNotOp: TTNN_ElementwiseUnaryOp<"logical_not"> {
     let summary = "Eltwise logical not op.";
     let description = [{

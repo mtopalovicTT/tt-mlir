@@ -210,6 +210,13 @@ def TTIR_CosOp: TTIR_ElementwiseUnaryOp<"cos"> {
     }];
 }
 
+def TTIR_GeluOp: TTIR_ElementwiseUnaryOp<"gelu"> {
+  let summary = "Eltwise GELU op.";
+  let description = [{
+    Eltwise GELU operation.
+  }];
+}
+
 def TTIR_LogicalNotOp: TTIR_ElementwiseUnaryOp<"logical_not"> {
     let summary = "Eltwise logical not op.";
     let description = [{
