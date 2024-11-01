@@ -9,6 +9,9 @@
 #include "tt/runtime/utils.h"
 #include "ttmlir/Target/TTNN/Target.h"
 #include "ttmlir/Version.h"
+#include "ttnn/tensor/shape/small_vector.hpp"
+#include "ttnn/tensor/types.hpp"
+
 namespace tt::runtime::ttnn {
 
 using ::tt::runtime::DeviceRuntime;
@@ -45,9 +48,14 @@ Tensor createTensor(std::shared_ptr<void> data,
                     std::vector<std::uint32_t> const &stride,
                     std::uint32_t itemsize, ::tt::target::DataType dataType) {
   std::uint32_t numElements = shape[0] * stride[0];
+
+  ::tt::tt_metal::SmallVector<uint32_t> small_vector_shape(shape.begin(),
+                                                           shape.end());
+
   auto tensor = std::make_shared<::ttnn::Tensor>(
-      createStorage(data.get(), numElements, dataType), shape,
-      utils::toTTNNDataType(dataType), ::ttnn::Layout::ROW_MAJOR);
+      createStorage(data.get(), numElements, dataType),
+      ::ttnn::Shape(small_vector_shape), utils::toTTNNDataType(dataType),
+      ::ttnn::Layout::ROW_MAJOR);
   return Tensor(tensor, data, DeviceRuntime::TTNN);
 }
 
