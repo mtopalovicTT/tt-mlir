@@ -22,7 +22,9 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/LogicalResult.h"
+#include <algorithm>
 #include <llvm/Support/raw_ostream.h>
+#include <mlir/IR/Value.h>
 #include <mlir/Support/LLVM.h>
 
 using namespace mlir;
@@ -115,38 +117,101 @@ enum ConvolutionKernelDimension {
   INVALID_KERNEL_DIM = -3
 };
 
-static tensor::EmptyOp generateTransposeDPSOutput(Value input, int64_t dim0,
-                                                  int64_t dim1,
-                                                  PatternRewriter &rewriter) {
-  auto input_type = mlir::cast<mlir::RankedTensorType>(input.getType());
-  auto output_shape = input_type.getShape().vec();
-  std::swap(output_shape[dim0], output_shape[dim1]);
+/*
+ * Generates a sequence of dims in which to transpose to make current_layout
+ * match desired_layout
+ *
+ * Ex: if current_layout = [0, 1, 2, 3] and desired_layout = [0, 2, 3, 1]
+ * then the function will return [(1, 2), (2, 3)] because when we swap
+ * current_layout[1] with current_layout[2] we get [0, 2, 1, 3], and then when
+ * we swap current_layout[2] with current_layout[3] we get [0, 2, 3, 1], which
+ * is the desired layout
+ */
+static std::vector<TransposeDims>
+generateTransposeIndices(std::vector<int64_t> current_layout,
+                         const std::vector<int64_t> desired_layout) {
+  std::vector<TransposeDims> transpose_indices;
+  for (int64_t i = 0; i < static_cast<int64_t>(current_layout.size()); i++) {
+    if (current_layout[i] != desired_layout[i]) {
+      int64_t dim0 = i;
+      int64_t dim1 = std::find(current_layout.begin(), current_layout.end(),
+                               desired_layout[i]) -
+                     current_layout.begin();
+      transpose_indices.push_back(std::make_tuple(dim0, dim1));
+      std::swap(current_layout[dim0], current_layout[dim1]);
+    }
+  }
 
-  auto output_type = RankedTensorType::get(
-      output_shape, input_type.getElementType(), input_type.getEncoding());
-
-  return rewriter.create<tensor::EmptyOp>(input.getLoc(), output_shape,
-                                          output_type.getElementType());
+  return transpose_indices;
 }
 
-static ttir::TransposeOp
-generateTranspose(Value input, int64_t dim0, int64_t dim1,
-                  PatternRewriter &rewriter,
-                  ::mlir::ArrayAttr operandConstraints) {
-  auto input_type = mlir::cast<mlir::RankedTensorType>(input.getType());
-  auto output_shape = input_type.getShape().vec();
-  std::swap(output_shape[dim0], output_shape[dim1]);
+/*
+ * This function will use a sequence of transpose indices to
+ * generate the actual transpose operations descrbibed by them.
+ *
+ * It takes an input to apply these transposes to and returns the
+ * result at the end of the sequence
+ */
+static Value
+generateTransposeSequence(Value input, PatternRewriter &rewriter,
+                          std::vector<TransposeDims> transpose_indices,
+                          ::mlir::ArrayAttr operand_constraints) {
+  for (auto [dim0, dim1] : transpose_indices) {
 
-  auto dim0_attr = rewriter.getSI32IntegerAttr(dim0);
-  auto dim1_attr = rewriter.getSI32IntegerAttr(dim1);
+    auto input_type = mlir::cast<mlir::RankedTensorType>(input.getType());
+    auto output_shape = input_type.getShape().vec();
+    std::swap(output_shape[dim0], output_shape[dim1]);
 
-  auto dps_output = generateTransposeDPSOutput(input, dim0, dim1, rewriter);
-  return rewriter.create<ttir::TransposeOp>(
-      input.getLoc(), dps_output.getType(), input, dps_output, dim0_attr,
-      dim1_attr, operandConstraints);
+    auto dim0_attr = rewriter.getSI32IntegerAttr(dim0);
+    auto dim1_attr = rewriter.getSI32IntegerAttr(dim1);
+
+    auto output_type = RankedTensorType::get(
+        output_shape, input_type.getElementType(), input_type.getEncoding());
+
+    auto dps_output = rewriter.create<tensor::EmptyOp>(
+        input.getLoc(), output_shape, output_type.getElementType());
+    input = rewriter
+                .create<ttir::TransposeOp>(input.getLoc(), output_type, input,
+                                           dps_output, dim0_attr, dim1_attr,
+                                           operand_constraints)
+                .getResult();
+  }
+
+  return input;
 }
 
-static std::vector<TransposeDims> generateKernelTransposeIndices(
+/*
+ * This function will generate the transpose indices needed to convert a
+ * convolution input to a desired layout. The reason for the separate
+ * function is to encapsulate the logic for constructuring the input_layout
+ */
+static std::vector<TransposeDims> generateConvTransposeIndices(
+    ttir::ConvolutionOp op,
+    const std::vector<int64_t> ttnn_convolution_layout) {
+
+  std::vector<int64_t> input_layout(ttnn_convolution_layout.size(),
+                                    ConvolutionDimension::INVALID_DIM);
+  input_layout[op.getConvolutionLayout().getInputBatchDimension()] =
+      ConvolutionDimension::BATCH;
+  input_layout[op.getConvolutionLayout().getInputFeatureDimension()] =
+      ConvolutionDimension::FEATURE;
+
+  int64_t spatial_count = 0;
+  for (int64_t spatial_dim :
+       op.getConvolutionLayout().getInputSpatialDimensions()) {
+    input_layout[spatial_dim] = spatial_count;
+    spatial_count++;
+  }
+
+  return generateTransposeIndices(input_layout, ttnn_convolution_layout);
+}
+
+/*
+ * This function will generate the transpose indices needed to convert a
+ * convolution input to a desired layout. The reason for the separate
+ * function is to encapsulate the logic for constructuring the kernel_layout
+ */
+static std::vector<TransposeDims> generateConvKernelTransposeIndices(
     ttir::ConvolutionOp op,
     const std::vector<int64_t> ttnn_convolution_kernel_layout) {
   std::vector<TransposeDims> transpose_indices;
@@ -166,109 +231,8 @@ static std::vector<TransposeDims> generateKernelTransposeIndices(
     spatial_count++;
   }
 
-  const std::vector<int64_t> desired_kernel_layout =
-      ttnn_convolution_kernel_layout;
-  for (int64_t i = 0; i < static_cast<int64_t>(kernel_layout.size()); i++) {
-    if (kernel_layout[i] != desired_kernel_layout[i]) {
-      int64_t dim0 = i;
-      int64_t dim1 = std::find(kernel_layout.begin(), kernel_layout.end(),
-                               desired_kernel_layout[i]) -
-                     kernel_layout.begin();
-      transpose_indices.push_back(std::make_tuple(dim0, dim1));
-      std::swap(kernel_layout[dim0], kernel_layout[dim1]);
-    }
-  }
-
-  return transpose_indices;
-}
-
-static std::vector<TransposeDims> generateInputTransposeIndices(
-    ttir::ConvolutionOp op,
-    const std::vector<int64_t> ttnn_convolution_layout) {
-  std::vector<TransposeDims> transpose_indices;
-
-  std::vector<int64_t> input_layout(ttnn_convolution_layout.size(),
-                                    ConvolutionDimension::INVALID_DIM);
-  input_layout[op.getConvolutionLayout().getInputBatchDimension()] =
-      ConvolutionDimension::BATCH;
-  input_layout[op.getConvolutionLayout().getInputFeatureDimension()] =
-      ConvolutionDimension::FEATURE;
-
-  int64_t spatial_count = 0;
-  for (int64_t spatial_dim :
-       op.getConvolutionLayout().getInputSpatialDimensions()) {
-    input_layout[spatial_dim] = spatial_count;
-    spatial_count++;
-  }
-
-  const std::vector<int64_t> desired_input_layout = ttnn_convolution_layout;
-  for (int64_t i = 0; i < static_cast<int64_t>(input_layout.size()); i++) {
-    if (input_layout[i] != desired_input_layout[i]) {
-      int64_t dim0 = i;
-      int64_t dim1 = std::find(input_layout.begin(), input_layout.end(),
-                               desired_input_layout[i]) -
-                     input_layout.begin();
-      transpose_indices.push_back(std::make_tuple(dim0, dim1));
-      std::swap(input_layout[dim0], input_layout[dim1]);
-    }
-  }
-
-  return transpose_indices;
-}
-
-/**
- * Although this function is mostly a clone of generateInputTransposeIndices,
- * its slightly different in that if the original Convolution op had the same
- * input and output layout, this function will generate the same transposes,
- * that were applied to the input but in reverse order. This makes optimizing
- * away the inserted transposes easier.
- */
-static std::vector<TransposeDims> generateOutputTransposeIndices(
-    ttir::ConvolutionOp op,
-    const std::vector<int64_t> ttnn_convolution_layout) {
-  std::vector<TransposeDims> transpose_indices;
-
-  std::vector<int64_t> desired_output_layout(ttnn_convolution_layout.size(),
-                                             ConvolutionDimension::INVALID_DIM);
-  desired_output_layout[op.getConvolutionLayout().getOutputBatchDimension()] =
-      ConvolutionDimension::BATCH;
-  desired_output_layout[op.getConvolutionLayout().getOutputFeatureDimension()] =
-      ConvolutionDimension::FEATURE;
-
-  int64_t spatial_count = 0;
-  for (int64_t spatial_dim :
-       op.getConvolutionLayout().getOutputSpatialDimensions()) {
-    desired_output_layout[spatial_dim] = spatial_count;
-    spatial_count++;
-  }
-
-  std::vector<int64_t> output_layout = ttnn_convolution_layout;
-
-  for (int64_t i = static_cast<int64_t>(desired_output_layout.size()) - 1;
-       i >= 0; i--) {
-    if (desired_output_layout[i] != output_layout[i]) {
-      int64_t dim0 = i;
-      int64_t dim1 = std::find(output_layout.begin(), output_layout.end(),
-                               desired_output_layout[i]) -
-                     output_layout.begin();
-      transpose_indices.push_back(std::make_tuple(dim0, dim1));
-      std::swap(output_layout[dim0], output_layout[dim1]);
-    }
-  }
-
-  return transpose_indices;
-}
-
-static Value
-generateTransposeSequence(Value input, PatternRewriter &rewriter,
-                          std::vector<TransposeDims> transpose_indices,
-                          ::mlir::ArrayAttr operandConstraints) {
-  for (auto [dim0, dim1] : transpose_indices) {
-    input = generateTranspose(input, dim0, dim1, rewriter, operandConstraints)
-                .getResult();
-  }
-
-  return input;
+  return generateTransposeIndices(kernel_layout,
+                                  ttnn_convolution_kernel_layout);
 }
 
 struct ConvolutionToConv2dPattern
@@ -376,14 +340,13 @@ public:
         adaptor.getInput().getLoc(), new_output_shape,
         outputType.getElementType());
 
-    auto input_transpose_indices =
-        generateInputTransposeIndices(op, conv2d_layout);
+    auto transpose_indices = generateConvTransposeIndices(op, conv2d_layout);
     Value input = generateTransposeSequence(adaptor.getInput(), rewriter,
-                                            input_transpose_indices,
+                                            transpose_indices,
                                             adaptor.getOperandConstraints());
 
     auto kernel_transpose_indices =
-        generateKernelTransposeIndices(op, conv2d_kernel_layout);
+        generateConvKernelTransposeIndices(op, conv2d_kernel_layout);
     Value weight = generateTransposeSequence(adaptor.getWeight(), rewriter,
                                              kernel_transpose_indices,
                                              adaptor.getOperandConstraints());
@@ -394,15 +357,235 @@ public:
         padding_left_attr, padding_right_attr, padding_top_attr,
         padding_bottom_attr, adaptor.getOperandConstraints());
 
-    auto output_transpose_indices =
-        generateOutputTransposeIndices(op, conv2d_layout);
+    // Applying the transposes in reverse order to the output will restore the
+    // tensor to the original layout
+    std::reverse(transpose_indices.begin(), transpose_indices.end());
     Value output = generateTransposeSequence(new_conv.getResult(), rewriter,
-                                             output_transpose_indices,
+                                             transpose_indices,
                                              adaptor.getOperandConstraints());
 
     rewriter.replaceOp(op, output);
 
     return success();
+  }
+};
+
+struct PoolingToPool2dPattern : public OpConversionPattern<ttir::PoolingOp> {
+public:
+  using OpConversionPattern<ttir::PoolingOp>::OpConversionPattern;
+
+  std::vector<int64_t> getIndicesOfSpatialDims(ttir::PoolingOp op) const {
+    std::vector<int64_t> spatial_dims;
+    for (int64_t i = 0;
+         i < static_cast<int64_t>(op.getWindowDimensions().size()); i++) {
+      if (op.getWindowDimensions()[i] > 1) {
+        spatial_dims.push_back(i);
+      }
+    }
+    return spatial_dims;
+  }
+
+  LogicalResult canDecompose2DPoolingOp(ttir::PoolingOp op) const {
+
+    // Window dimensions must be 4 in length
+    if (op.getWindowDimensions().size() != 4) {
+      return failure();
+    }
+
+    // Window strides must be 4 in length
+    if (op.getWindowStrides().size() != 4) {
+      return failure();
+    }
+
+    // Operand rank(s) must be 4
+    for (Value operand : op.getInputs()) {
+      auto operand_type = mlir::cast<mlir::RankedTensorType>(operand.getType());
+      if (operand_type.getRank() != 4) {
+        return failure();
+      }
+    }
+
+    // Exactly two of the window dimensions must be greater than 1
+    std::vector<int64_t> true_window_dimensions_indices =
+        getIndicesOfSpatialDims(op);
+
+    if (true_window_dimensions_indices.size() != 2) {
+      return failure();
+    }
+
+    // Exactly two of the window strides must be greater than 1
+    std::vector<int64_t> true_window_stride_indices;
+    for (int64_t i = 0; i < static_cast<int64_t>(op.getWindowStrides().size());
+         i++) {
+      if (op.getWindowStrides()[i] > 1) {
+        true_window_stride_indices.push_back(i);
+      }
+    }
+
+    if (true_window_stride_indices.size() != 2) {
+      return failure();
+    }
+
+    // The indices of the true window dimensions and strides must be the same
+    if ((true_window_dimensions_indices[0] != true_window_stride_indices[0] ||
+         true_window_dimensions_indices[1] != true_window_stride_indices[1]) &&
+        (true_window_dimensions_indices[0] != true_window_stride_indices[1] ||
+         true_window_dimensions_indices[1] != true_window_stride_indices[0])) {
+      return failure();
+    }
+
+    // Padding must be 8 in length
+    if (op.getPadding().size() != 8) {
+      return failure();
+    }
+
+    return success();
+  }
+
+  template <typename PoolOpType>
+  void rewritePool2d(ttir::PoolingOp op, OpAdaptor adaptor,
+                     ConversionPatternRewriter &rewriter) const {
+
+    const int64_t SPATIAL_H = -3;
+    const int64_t SPATIAL_W = -2;
+    const int64_t NON_SPATIAL = -1;
+
+    auto inputType =
+        mlir::cast<RankedTensorType>(adaptor.getInputs()[0].getType());
+    assert(inputType.getRank() == 4 && "Input must be 4D tensor");
+    std::vector<int64_t> desired_layout(inputType.getRank(), NON_SPATIAL);
+    desired_layout[inputType.getRank() - 3] = SPATIAL_H;
+    desired_layout[inputType.getRank() - 2] = SPATIAL_W;
+
+    int64_t non_spatial_count = 0;
+    for (int64_t i = 0; i < static_cast<int64_t>(desired_layout.size()); i++) {
+      if (desired_layout[i] == NON_SPATIAL) {
+        desired_layout[i] = non_spatial_count;
+        non_spatial_count++;
+      }
+    }
+
+    std::vector<int64_t> spatial_dims = getIndicesOfSpatialDims(op);
+
+    std::vector<int64_t> current_layout(inputType.getRank(), NON_SPATIAL);
+    current_layout[spatial_dims[0]] = SPATIAL_H;
+    current_layout[spatial_dims[1]] = SPATIAL_W;
+
+    non_spatial_count = 0;
+    for (int64_t i = 0; i < static_cast<int64_t>(current_layout.size()); i++) {
+      if (current_layout[i] == NON_SPATIAL) {
+        current_layout[i] = non_spatial_count;
+        non_spatial_count++;
+      }
+    }
+
+    auto transpose_indices =
+        generateTransposeIndices(current_layout, desired_layout);
+
+    auto kernel_height_attr = rewriter.getSI32IntegerAttr(
+        static_cast<int32_t>(op.getWindowDimensions()[spatial_dims[0]]));
+    auto kernel_width_attr = rewriter.getSI32IntegerAttr(
+        static_cast<int32_t>(op.getWindowDimensions()[spatial_dims[1]]));
+
+    auto stride_height_attr = rewriter.getSI32IntegerAttr(
+        static_cast<int32_t>(op.getWindowStrides()[spatial_dims[0]]));
+
+    auto stride_width_attr = rewriter.getSI32IntegerAttr(
+        static_cast<int32_t>(op.getWindowStrides()[spatial_dims[1]]));
+
+    auto dilation_height_attr = rewriter.getSI32IntegerAttr(
+        adaptor.getWindowDilations()[spatial_dims[0]]);
+    auto dilation_width_attr = rewriter.getSI32IntegerAttr(
+        adaptor.getWindowDilations()[spatial_dims[1]]);
+    auto ceil_mode_attr = rewriter.getBoolAttr(false);
+
+    auto padding_top_attr =
+        rewriter.getSI32IntegerAttr(op.getPadding()[2 * spatial_dims[0]]);
+    auto padding_bottom_attr =
+        rewriter.getSI32IntegerAttr(op.getPadding()[2 * spatial_dims[0] + 1]);
+    auto padding_left_attr =
+        rewriter.getSI32IntegerAttr(op.getPadding()[2 * spatial_dims[1]]);
+    auto padding_right_attr =
+        rewriter.getSI32IntegerAttr(op.getPadding()[2 * spatial_dims[1] + 1]);
+    auto operand_constraints = adaptor.getOperandConstraints();
+
+    std::vector<Value> outputs;
+    for (Value input : adaptor.getInputs()) {
+      input = generateTransposeSequence(input, rewriter, transpose_indices,
+                                        operand_constraints);
+
+      auto outputType = mlir::cast<RankedTensorType>(op.getResult(0).getType());
+      auto newOutputShape = outputType.getShape().vec();
+      for (TransposeDims dims : transpose_indices) {
+        std::swap(newOutputShape[std::get<0>(dims)],
+                  newOutputShape[std::get<1>(dims)]);
+      }
+      auto newOutputType =
+          outputType.cloneWith(newOutputShape, outputType.getElementType());
+      auto outputTensor = rewriter.create<tensor::EmptyOp>(
+          op.getLoc(), newOutputType.getShape(),
+          newOutputType.getElementType());
+
+      auto new_pool = rewriter.create<PoolOpType>(
+          op.getLoc(), newOutputType, input, outputTensor, kernel_height_attr,
+          kernel_width_attr, stride_height_attr, stride_width_attr,
+          dilation_height_attr, dilation_width_attr, ceil_mode_attr,
+          padding_top_attr, padding_bottom_attr, padding_left_attr,
+          padding_right_attr, operand_constraints);
+
+      // Applying the transposes in reverse order to the output will restore the
+      // tensor to the original layout
+      std::reverse(transpose_indices.begin(), transpose_indices.end());
+      Value output =
+          generateTransposeSequence(new_pool.getResult(), rewriter,
+                                    transpose_indices, operand_constraints);
+
+      // Reverse back so the proper input transposes are generated for the next
+      // pool
+      std::reverse(transpose_indices.begin(), transpose_indices.end());
+      outputs.push_back(output);
+    }
+
+    rewriter.replaceOp(op, outputs);
+  }
+
+  uint32_t getNumSpatialDims(ttir::PoolingOp op) const {
+    uint32_t numSpatialDims = 0;
+    for (int64_t dim : op.getWindowDimensions()) {
+      if (dim > 1) {
+        numSpatialDims++;
+      }
+    }
+    return numSpatialDims;
+  }
+
+  LogicalResult
+  matchAndRewrite(ttir::PoolingOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    uint32_t numSpatialDims = getNumSpatialDims(op);
+    if (numSpatialDims == 2) {
+      if (failed(canDecompose2DPoolingOp(op))) {
+        return rewriter.notifyMatchFailure(
+            op, "2D pooling op with the given attributes is not supported "
+                "currently");
+      }
+
+      switch (op.getPoolingMethod()) {
+      case ttir::PoolingMethod::Max: {
+        rewritePool2d<ttir::MaxPool2dOp>(op, adaptor, rewriter);
+        return success();
+      }
+      default: {
+        return rewriter.notifyMatchFailure(
+            op, "Failed to match pooling method: " +
+                    stringifyPoolingMethod(op.getPoolingMethod()));
+      }
+      }
+    }
+    return rewriter.notifyMatchFailure(
+        op, "No decompositions for a pooling op with " +
+                std::to_string(numSpatialDims) + " spatial dimensions");
   }
 };
 
@@ -437,6 +620,7 @@ public:
 void populateTTIRToTTIRDecompositionPatterns(MLIRContext *ctx,
                                              RewritePatternSet &patterns,
                                              TypeConverter &typeConverter) {
+  patterns.add<PoolingToPool2dPattern>(typeConverter, ctx);
   patterns.add<IndexToSliceConversionPattern>(typeConverter, ctx);
   patterns.add<ConvolutionToConv2dPattern>(typeConverter, ctx);
   patterns.add<GetDimensionSizeToConstantConversionPattern>(typeConverter, ctx);
