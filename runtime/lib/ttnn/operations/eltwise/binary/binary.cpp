@@ -50,6 +50,12 @@ void run(const ::tt::target::ttnn::EltwiseOp *op, ProgramContext &context) {
     runEltwiseBinaryOP(op, tensorPool, ::ttnn::logical_or);
     break;
   }
+  // [TODO]: This require tt-metal uplift
+  // (https://github.com/tenstorrent/tt-mlir/issues/1149)
+  // case::tt::target::ttnn::EltwiseOpType::LogicalXor: {
+  //   runEltwiseBinaryOP(op, tensorPool, ::ttnn::logical_xor);
+  //   break;
+  // }
   case ::tt::target::ttnn::EltwiseOpType::Multiply: {
     runEltwiseBinaryOP(op, tensorPool, ::ttnn::multiply);
     break;
