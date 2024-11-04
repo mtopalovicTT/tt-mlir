@@ -21,6 +21,7 @@
 #include "operations/layout/to_layout.h"
 #include "operations/layout/to_memory_config.h"
 #include "operations/layout/typecast.h"
+#include "operations/linear/linear.h"
 #include "operations/matmul/matmul.h"
 #include "operations/normalization/softmax.h"
 #include "operations/pool/maxpool2d.h"
@@ -112,6 +113,9 @@ void ProgramExecutor::runOperation(const ::tt::target::ttnn::Operation *op) {
   case ::tt::target::ttnn::OpType::EltwiseOp: {
     const ::tt::target::ttnn::EltwiseOp *eltwiseOp = op->type_as_EltwiseOp();
     return runEltwiseOperation(eltwiseOp);
+  }
+  case ::tt::target::ttnn::OpType::LinearOp: {
+    return operations::linear::run(op->type_as_LinearOp(), context);
   }
   // ANCHOR: adding_an_op_matmul_runtime_program
   case ::tt::target::ttnn::OpType::MatmulOp: {

@@ -515,6 +515,27 @@ def TTNN_SliceOp: TTNN_NamedDPSOp<"slice"> {
     let hasVerifier = 1;
 }
 
+def TTNN_LinearOp : TTNN_NamedDPSOp<"linear"> {
+    let summary = "Linear transformation of inputs.";
+    // TODO (azecevic)
+    let description = [{
+    }];
+
+    let arguments = (ins AnyRankedTensor:$a,
+                         AnyRankedTensor:$b,
+                         Optional<AnyRankedTensor>:$bias,
+                         AnyRankedTensor:$output);
+
+    let results = (outs AnyRankedTensor:$result);
+
+    let extraClassDeclaration = [{
+      MutableOperandRange getDpsInitsMutable() { return getOutputMutable(); }
+    }];
+
+    let hasVerifier = 1;
+}
+
+
 // ANCHOR: adding_an_op_matmul_ttnn
 def TTNN_MatmulOp : TTNN_NamedDPSOp<"matmul"> {
     let arguments = (ins AnyRankedTensor:$a,

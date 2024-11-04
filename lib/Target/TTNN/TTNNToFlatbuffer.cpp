@@ -32,6 +32,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <cassert>
+#include <flatbuffers/buffer.h>
 #include <fstream>
 #include <optional>
 
@@ -241,6 +242,21 @@ createOp(FlatbufferObjectCache &cache, FullOp op) {
       *cache.fbb, cache.at<::tt::target::DeviceRef>(device), fillValue,
       cache.getOrCreate(output, tensorValueToFlatbuffer, kHostAllocatedAddress,
                         kHostAllocatedSize));
+}
+
+::flatbuffers::Offset<::tt::target::ttnn::LinearOp>
+createOp(FlatbufferObjectCache &cache, LinearOp op) {
+  auto in0 =
+      cache.at<::tt::target::TensorRef>(getOperandThroughDPSOps(op.getA()));
+  auto in1 =
+      cache.at<::tt::target::TensorRef>(getOperandThroughDPSOps(op.getB()));
+  auto bias = op.getODSOperands(2).empty()
+                  ? flatbuffers::Offset<::tt::target::TensorRef>()
+                  : cache.at<::tt::target::TensorRef>(
+                        getOperandThroughDPSOps(op.getBias()));
+  auto output = cache.at<::tt::target::TensorRef>(
+      getOperandThroughDPSOps(op.getResult()));
+  return ::tt::target::ttnn::CreateLinearOp(*cache.fbb, in0, in1, bias, output);
 }
 
 // ANCHOR: adding_an_op_matmul_serialize_to_binary
@@ -624,6 +640,9 @@ emitTTNNOperation(FlatbufferObjectCache &cache, Operation *op,
   }
   if (auto divOp = dyn_cast<DivOp>(op); divOp) {
     return createOperation(cache, createEltwiseOp(cache, divOp), debugString);
+  }
+  if (auto linearOp = dyn_cast<LinearOp>(op); linearOp) {
+    return createOperation(cache, createOp(cache, linearOp), debugString);
   }
   if (auto matmulOp = dyn_cast<MatmulOp>(op); matmulOp) {
     return createOperation(cache, createOp(cache, matmulOp), debugString);

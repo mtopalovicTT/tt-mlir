@@ -21,6 +21,7 @@ set(TTNN_OPS_SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/layout/to_layout.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/layout/typecast.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/layout/to_memory_config.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/linear/linear.cpp
   # ANCHOR: adding_an_op_matmul_runtime_cmake
   ${CMAKE_CURRENT_SOURCE_DIR}/matmul/matmul.cpp
   # ANCHOR_END: adding_an_op_matmul_runtime_cmake
