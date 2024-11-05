@@ -5,6 +5,7 @@
 #include "ttmlir/Backend/TTNN/TTNNWrapper.hpp"
 #include "ttmlir/Dialect/TTNN/IR/TTNNOps.h"
 #include "ttmlir/Dialect/TTNN/IR/TTNNOpsBackendInterfaces.cpp.inc"
+#include <cassert>
 
 namespace mlir::tt::ttnn {
 
@@ -21,16 +22,15 @@ size_t ReluOp::getOpPerfCycles(const std::vector<tt::LayoutAttr> &input_layouts,
 
 size_t ReluOp::getOpL1Usage(const std::vector<tt::LayoutAttr> &input_layouts,
                             const tt::LayoutAttr &output_layout) {
-  // Implement a custom estimate for relu op L1 usage.
-  return 10;
+
+  assert(input_layouts.size() == 1);
+  return ReluIsLegal(input_layouts[0], output_layout);
 }
 
 bool ReluOp::isOpLegal(const std::vector<tt::LayoutAttr> &input_layouts,
                        const tt::LayoutAttr &output_layout) {
-  // Implement a custom check for relu op legality.
-  print_tensor_shape(output_layout.getMemref());
-
-  return true;
+  assert(input_layouts.size() == 1);
+  return ReluIsLegal(input_layouts[0], output_layout);
 }
 
 } // namespace mlir::tt::ttnn

@@ -18,7 +18,7 @@ target_include_directories(${LIB_NAME}
     ${PROJECT_SOURCE_DIR}/include/ttmlir/Backend/TTNN/)
 
 target_include_directories(${LIB_NAME} PUBLIC "$<BUILD_INTERFACE:${TTMETAL_INCLUDE_DIRS}>")
-target_link_libraries(${LIB_NAME} PUBLIC TTNN_LIBRARY)
+target_link_libraries(${LIB_NAME} PUBLIC TTNN_LIBRARY TTMETAL_LIBRARY)
 # target_link_libraries(${LIB_NAME} PUBLIC MLIRTTDialect)
 # target_link_libraries(${LIB_NAME} 
 #     PUBLIC

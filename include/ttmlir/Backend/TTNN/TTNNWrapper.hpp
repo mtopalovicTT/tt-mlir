@@ -9,8 +9,10 @@
 #include <vector>
 
 namespace mlir::tt {
-void calculus(mlir::tt::LayoutAttr layout);
 
-void print_tensor_shape(const mlir::MemRefType &memref);
+bool ReluIsLegal(const mlir::tt::LayoutAttr &inputLayout,
+                 const mlir::tt::LayoutAttr &outputLayout);
+size_t ReluGetOpL1Usage(const mlir::tt::LayoutAttr &inputLayout,
+                        const mlir::tt::LayoutAttr &outputLayout);
 
 } // namespace mlir::tt

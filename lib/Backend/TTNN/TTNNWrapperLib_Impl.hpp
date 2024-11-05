@@ -63,12 +63,9 @@
 // #include "ttnn/operations/normalization/softmax/softmax.hpp"
 // #include "ttnn/operations/pool/maxpool/max_pool2d.hpp"
 // #include "ttnn/operations/reduction/generic/generic_reductions.hpp"
+#include "tt_metal/common/core_coord.hpp"
+#include "tt_metal/impl/buffers/buffer.hpp"
 #include "ttnn/tensor/tensor.hpp"
 #include "ttnn/tensor/types.hpp"
+
 #pragma clang diagnostic pop
-
-namespace mlir::tt {
-
-::ttnn::SimpleShape get_tensor_shape(const mlir::MemRefType &memref);
-
-} // namespace mlir::tt
