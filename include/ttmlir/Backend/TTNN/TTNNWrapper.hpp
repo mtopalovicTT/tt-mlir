@@ -6,13 +6,13 @@
 
 #include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
 
-#include <vector>
+namespace mlir::tt::backend::ttnn {
 
-namespace mlir::tt {
+struct ReluOpInterface {
+  static bool IsLegal(const mlir::tt::LayoutAttr &inputLayout,
+                      const mlir::tt::LayoutAttr &outputLayout);
+  static size_t GetOpL1Usage(const mlir::tt::LayoutAttr &inputLayout,
+                             const mlir::tt::LayoutAttr &outputLayout);
+};
 
-bool ReluIsLegal(const mlir::tt::LayoutAttr &inputLayout,
-                 const mlir::tt::LayoutAttr &outputLayout);
-size_t ReluGetOpL1Usage(const mlir::tt::LayoutAttr &inputLayout,
-                        const mlir::tt::LayoutAttr &outputLayout);
-
-} // namespace mlir::tt
+} // namespace mlir::tt::backend::ttnn

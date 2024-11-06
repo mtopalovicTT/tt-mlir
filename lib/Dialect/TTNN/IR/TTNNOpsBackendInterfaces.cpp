@@ -24,13 +24,15 @@ size_t ReluOp::getOpL1Usage(const std::vector<tt::LayoutAttr> &input_layouts,
                             const tt::LayoutAttr &output_layout) {
 
   assert(input_layouts.size() == 1);
-  return ReluIsLegal(input_layouts[0], output_layout);
+  return backend::ttnn::ReluOpInterface::GetOpL1Usage(input_layouts[0],
+                                                      output_layout);
 }
 
 bool ReluOp::isOpLegal(const std::vector<tt::LayoutAttr> &input_layouts,
                        const tt::LayoutAttr &output_layout) {
   assert(input_layouts.size() == 1);
-  return ReluIsLegal(input_layouts[0], output_layout);
+  return backend::ttnn::ReluOpInterface::IsLegal(input_layouts[0],
+                                                 output_layout);
 }
 
 } // namespace mlir::tt::ttnn

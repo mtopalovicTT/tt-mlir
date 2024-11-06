@@ -13,11 +13,22 @@
 #include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
 #include "ttnn/tensor/types.hpp"
 
-namespace mlir::tt {
+namespace mlir::tt::backend::ttnn {
+
+// alias to a common backend types
+using be_DataType = ::tt::tt_metal::DataType;
+using be_Layout = ::tt::tt_metal::Layout;
+using be_CoreRange = ::tt::tt_metal::CoreRange;
+using be_CoreRangeSet = ::tt::tt_metal::CoreRangeSet;
+using be_CoreCoord = ::tt::tt_metal::CoreCoord;
+using be_ShardSpec = ::tt::tt_metal::ShardSpec;
+using be_ShardOrientation = ::tt::tt_metal::ShardOrientation;
+using be_TensorMemoryLayout = ::tt::tt_metal::TensorMemoryLayout;
+using be_MemoryConfig = ::tt::tt_metal::MemoryConfig;
 
 namespace detail {
 
-::tt::tt_metal::DataType getDataType(const mlir::MemRefType &memref) {
+be_DataType getDataType(const mlir::MemRefType &memref) {
 
   // what's better way to to this?
   // auto dataTypeAttr =
@@ -28,17 +39,17 @@ namespace detail {
 
   // switch (dataTypeAttr.getValue()) {
   // case tt::DataType::BFloat16:
-  //   return ::tt::tt_metal::DataType::BFLOAT16;
+  //   return tt_DataType::BFLOAT16;
   // case tt::DataType::Float32:
-  //   return ::tt::tt_metal::DataType::FLOAT32;
+  //   return tt_DataType::FLOAT32;
   // case tt::DataType::BFP_BFloat8:
-  //   return ::tt::tt_metal::DataType::BFLOAT8_B;
+  //   return tt_DataType::BFLOAT8_B;
   // case tt::DataType::BFP_BFloat4:
-  //   return ::tt::tt_metal::DataType::BFLOAT4_B;
+  //   return tt_DataType::BFLOAT4_B;
   // case tt::DataType::UInt8:
-  //   return ::tt::tt_metal::DataType::UINT8;
+  //   return tt_DataType::UINT8;
   // case tt::DataType::UInt16:
-  //   return ::tt::tt_metal::DataType::UINT16;
+  //   return tt_DataType::UINT16;
   // default:
   //   throw std::runtime_error("Invalid element type");
   // }
@@ -51,25 +62,25 @@ namespace detail {
   element_type.print(os);
   std::string data_type_str = os.str();
   if (data_type_str == "f32") {
-    return ::tt::tt_metal::DataType::FLOAT32;
+    return be_DataType::FLOAT32;
   }
   if (data_type_str == "bf16") {
-    return ::tt::tt_metal::DataType::BFLOAT16;
+    return be_DataType::BFLOAT16;
   }
   if (data_type_str == "bfp_bf8") {
-    return ::tt::tt_metal::DataType::BFLOAT8_B;
+    return be_DataType::BFLOAT8_B;
   }
   if (data_type_str == "bfp_bf4") {
-    return ::tt::tt_metal::DataType::BFLOAT4_B;
+    return be_DataType::BFLOAT4_B;
   }
   if (data_type_str == "u32") {
-    return ::tt::tt_metal::DataType::UINT32;
+    return be_DataType::UINT32;
   }
   if (data_type_str == "u16") {
-    return ::tt::tt_metal::DataType::UINT16;
+    return be_DataType::UINT16;
   }
   if (data_type_str == "u8") {
-    return ::tt::tt_metal::DataType::UINT8;
+    return be_DataType::UINT8;
   }
   throw std::runtime_error("Invalid element type");
 }
@@ -97,13 +108,11 @@ getShardShape(const mlir::tt::LayoutAttr &layout) {
   return shardShape;
 }
 
-::tt::tt_metal::Layout getTensorLayout(const mlir::tt::LayoutAttr &layout) {
-  return layout.isTiled() ? ::tt::tt_metal::Layout::TILE
-                          : ::tt::tt_metal::Layout::ROW_MAJOR;
+be_Layout getTensorLayout(const mlir::tt::LayoutAttr &layout) {
+  return layout.isTiled() ? be_Layout::TILE : be_Layout::ROW_MAJOR;
 }
 
-::tt::tt_metal::CoreRangeSet
-getCoreRangeSet(const mlir::tt::LayoutAttr &layout) {
+be_CoreRangeSet getCoreRangeSet(const mlir::tt::LayoutAttr &layout) {
   // TODO(mbezulj): handle more complex grid shapes
   // assuming grid shape is one rect starting at (0,0)
 
@@ -115,19 +124,18 @@ getCoreRangeSet(const mlir::tt::LayoutAttr &layout) {
     return {};
   }
 
-  return ::tt::tt_metal::CoreRangeSet(::tt::tt_metal::CoreRange(
-      ::tt::tt_metal::CoreCoord(0, layoutGridShape[0]),
-      ::tt::tt_metal::CoreCoord(0, layoutGridShape[1])));
+  return be_CoreRangeSet(be_CoreRange(be_CoreCoord(0, layoutGridShape[0]),
+                                      be_CoreCoord(0, layoutGridShape[1])));
 }
 
-std::optional<::tt::tt_metal::ShardSpec>
+std::optional<be_ShardSpec>
 layout_get_shard_spec(const mlir::tt::LayoutAttr &layout) {
-  // ::tt::tt_metal::ShardOrientation is not part of LayoutAttr;
+  // tt_ShardOrientation is not part of LayoutAttr;
   // defaulting to ROW_MAJOR. TODO: figure out if we need to expose this
   return isShardedMemoryLayout(layout.getMemLayout())
-             ? std::make_optional(::tt::tt_metal::ShardSpec(
-                   getCoreRangeSet(layout), getShardShape(layout),
-                   ::tt::tt_metal::ShardOrientation::ROW_MAJOR, false))
+             ? std::make_optional(
+                   be_ShardSpec(getCoreRangeSet(layout), getShardShape(layout),
+                                be_ShardOrientation::ROW_MAJOR, false))
              : std::nullopt;
 }
 
@@ -145,23 +153,23 @@ layout_get_shard_spec(const mlir::tt::LayoutAttr &layout) {
   }
 }
 
-::tt::tt_metal::TensorMemoryLayout
+be_TensorMemoryLayout
 getTensorMemoryLayout(const mlir::tt::LayoutAttr &layout) {
   auto tensorMemoryLayout = layout.getMemLayout();
 
   switch (tensorMemoryLayout) {
   case tt::TensorMemoryLayout::Interleaved:
-    return ::tt::tt_metal::TensorMemoryLayout::INTERLEAVED;
+    return be_TensorMemoryLayout::INTERLEAVED;
   case tt::TensorMemoryLayout::SingleBank:
-    return ::tt::tt_metal::TensorMemoryLayout::SINGLE_BANK;
+    return be_TensorMemoryLayout::SINGLE_BANK;
   case tt::TensorMemoryLayout::HeightSharded:
-    return ::tt::tt_metal::TensorMemoryLayout::HEIGHT_SHARDED;
+    return be_TensorMemoryLayout::HEIGHT_SHARDED;
   case tt::TensorMemoryLayout::WidthSharded:
-    return ::tt::tt_metal::TensorMemoryLayout::WIDTH_SHARDED;
+    return be_TensorMemoryLayout::WIDTH_SHARDED;
   case tt::TensorMemoryLayout::BlockSharded:
-    return ::tt::tt_metal::TensorMemoryLayout::BLOCK_SHARDED;
+    return be_TensorMemoryLayout::BLOCK_SHARDED;
   default:
-    return ::tt::tt_metal::TensorMemoryLayout::INTERLEAVED;
+    return be_TensorMemoryLayout::INTERLEAVED;
   }
 }
 
@@ -178,8 +186,12 @@ getMemoryConfig(const mlir::tt::LayoutAttr &layout) {
 
 } // namespace detail
 
-bool ReluIsLegal(const mlir::tt::LayoutAttr &inputLayout,
-                 const mlir::tt::LayoutAttr &outputLayout) {
+//===----------------------------------------------------------------------===//
+// ReluOp
+//===----------------------------------------------------------------------===//
+
+bool ReluOpInterface::IsLegal(const mlir::tt::LayoutAttr &inputLayout,
+                              const mlir::tt::LayoutAttr &outputLayout) {
 
   // const auto inputShape = detail::getTensorShape(inputLayout.getMemref());
   // const auto inputDataType = detail::getDataType(inputLayout.getMemref());
@@ -201,21 +213,12 @@ bool ReluIsLegal(const mlir::tt::LayoutAttr &inputLayout,
   // std::cout << "outputLayoutType: " << outputLayoutType << std::endl;
   // std::cout << "outputMemoryConfig: " << outputMemoryConfig << std::endl;
 
-  return true;
+  return true; // to solve when we have metal implementation
 }
 
-size_t ReluGetOpL1Usage(const mlir::tt::LayoutAttr &inputLayout,
-                        const mlir::tt::LayoutAttr &outputLayout) {
-  throw std::runtime_error("Not implemented");
+size_t ReluOpInterface::GetOpL1Usage(const mlir::tt::LayoutAttr &inputLayout,
+                                     const mlir::tt::LayoutAttr &outputLayout) {
+  return 0; // to solve when we have metal implementation
 }
 
-void calculus(mlir::tt::LayoutAttr layout) {
-  throw std::runtime_error("Not implemented");
-}
-
-void print_tensor_shape(const mlir::MemRefType &memref) {
-  const auto shape = detail::getTensorShape(memref);
-  std::cout << shape << std::endl;
-}
-
-} // namespace mlir::tt
+} // namespace mlir::tt::backend::ttnn
