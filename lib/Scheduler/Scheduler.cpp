@@ -59,40 +59,6 @@ Scheduler::Scheduler(const Scheduler &scheduler)
       schedulableOps(scheduler.schedulableOps),
       scheduledOps(scheduler.scheduledOps), schedule(scheduler.schedule) {}
 
-llvm::SmallVector<mlir::Operation *> Scheduler::getScheduleableOps() {
-  llvm::SmallVector<mlir::Operation *> scheduleableOps;
-  for (auto &op : unscheduledOps) {
-    if (canSchedule(op)) {
-      scheduleableOps.push_back(op);
-    }
-  }
-
-  return scheduleableOps;
-}
-
-bool Scheduler::canSchedule(mlir::Operation *op) {
-  for (mlir::Operation *dep : dependencies[op]) {
-    if (!scheduledOps.count(dep)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-void Scheduler::scheduleOp(mlir::Operation *op) {
-  scheduledOps.insert(op);
-  unscheduledOps.erase(op);
-  schedule.push_back(op);
-}
-
-std::unique_ptr<Scheduler> Scheduler::snapshot() {
-  return std::make_unique<Scheduler>(*this);
-}
-
-llvm::SmallVector<mlir::Operation *> Scheduler::getSchedule() const {
-  return schedule;
-}
-
 bool Scheduler::hasUnscheduledOps() const { return !unscheduledOps.empty(); }
+
 } // namespace mlir::tt::scheduler

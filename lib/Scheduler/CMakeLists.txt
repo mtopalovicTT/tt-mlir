@@ -1,5 +1,7 @@
 add_mlir_library(MLIRScheduler
     Scheduler.cpp
+    QueueScheduler.cpp
+    PrecedenceScheduler.cpp
 
     ADDITIONAL_HEADER_DIRS
     ${PROJECT_SOURCE_DIR}/include/ttmlir/Scheduler

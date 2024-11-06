@@ -4,14 +4,14 @@
 
 #include "ttmlir/Dialect/TTNN/Analysis/DFShardingPolicy.h"
 #include "ttmlir/Dialect/TTNN/IR/TTNNOps.h"
-#include "ttmlir/Scheduler/Scheduler.h"
+#include "ttmlir/Scheduler/QueueScheduler.h"
 
 namespace mlir::tt::ttnn {
 
 void DFShardingPolicy::run() {
   rootOp->walk([&](func::FuncOp func) {
     DeviceAttr deviceAttr = getCurrentScopeDevice(func);
-    mlir::tt::scheduler::Scheduler scheduler(&func);
+    mlir::tt::scheduler::QueueScheduler scheduler(&func);
     l1ChainConfigs->push_back(L1ChainConfig());
     llvm::SmallVector<mlir::Operation *> scheduleableOps;
     Operation *currentOp = nullptr;

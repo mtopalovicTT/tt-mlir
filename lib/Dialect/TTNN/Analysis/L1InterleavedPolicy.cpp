@@ -5,7 +5,7 @@
 #include "ttmlir/Dialect/TTNN/Analysis/L1InterleavedPolicy.h"
 #include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
 #include "ttmlir/Dialect/TTNN/IR/TTNNOps.h"
-#include "ttmlir/Scheduler/Scheduler.h"
+#include "ttmlir/Scheduler/QueueScheduler.h"
 
 namespace mlir::tt::ttnn {
 
@@ -27,7 +27,7 @@ uint64_t getOpOutputLayoutUsage(
 void L1InterleavedPolicy::run() {
   rootOp->walk([&](func::FuncOp func) {
     DeviceAttr deviceAttr = getCurrentScopeDevice(func);
-    mlir::tt::scheduler::Scheduler scheduler(&func);
+    mlir::tt::scheduler::QueueScheduler scheduler(&func);
     llvm::SmallVector<mlir::Operation *> scheduleableOps;
     llvm::DenseMap<Operation *, tt::LayoutAttr> selectedOpLayout;
     Operation *currentOp = nullptr;

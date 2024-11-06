@@ -5,25 +5,20 @@
 #include <gtest/gtest.h>
 #include <random>
 
-#include "mlir/IR/Attributes.h"
-#include "mlir/IR/BuiltinAttributes.h"
-#include "mlir/IR/Value.h"
-#include "mlir/IR/ValueRange.h"
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringRef.h"
-
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OperationSupport.h"
+#include "mlir/IR/Value.h"
 #include "mlir/IR/Verifier.h"
 
 #include "ttmlir/Dialect/TT/IR/TT.h"
 #include "ttmlir/Dialect/TTIR/IR/TTIR.h"
-#include "ttmlir/Scheduler/Scheduler.h"
+#include "ttmlir/Scheduler/QueueScheduler.h"
 
 #include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
 #include "ttmlir/Dialect/TTIR/IR/TTIROps.h"
@@ -144,7 +139,7 @@ TEST_F(SchedulerBase, FixedSchedule) {
   }
 
   // Run scheduler to get the schedule
-  mlir::tt::scheduler::Scheduler scheduler(&func);
+  mlir::tt::scheduler::QueueScheduler scheduler(&func);
   for (std::size_t i = 0; i < NumberOfOps; i++) {
     llvm::SmallVector<mlir::Operation *> scheduleableOps =
         scheduler.getScheduleableOps();
@@ -178,7 +173,7 @@ TEST_F(SchedulerBase, SingleOp) {
   ttir::TTIROp op = builder.create<ttir::AddOp>(builder.getUnknownLoc(), lhs,
                                                 rhs, dest, attrs);
 
-  mlir::tt::scheduler::Scheduler scheduler(&func);
+  mlir::tt::scheduler::QueueScheduler scheduler(&func);
   ASSERT_TRUE(scheduler.hasUnscheduledOps());
   llvm::SmallVector<mlir::Operation *> scheduleableOps =
       scheduler.getScheduleableOps();
@@ -229,7 +224,7 @@ TEST_F(SchedulerBase, VerifyFork) {
                                    attrs);
   ops.push_back(op);
 
-  mlir::tt::scheduler::Scheduler scheduler(&func);
+  mlir::tt::scheduler::QueueScheduler scheduler(&func);
   llvm::SmallVector<mlir::Operation *> scheduleableOps =
       scheduler.getScheduleableOps();
   ASSERT_EQ(scheduleableOps.size(), 1);

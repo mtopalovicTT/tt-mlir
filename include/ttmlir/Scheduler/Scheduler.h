@@ -12,6 +12,11 @@
 
 namespace mlir::tt::scheduler {
 
+// Helper scheduler functions
+bool isTTNNOp(mlir::Operation *op);
+bool isTTIROp(mlir::Operation *op);
+bool isTTShedulableOp(mlir::Operation *op);
+
 class Scheduler {
 public:
   // Constructor taking an MLIR Operation (or a module)
@@ -20,25 +25,24 @@ public:
   // Copy constructor
   Scheduler(const Scheduler &scheduler);
 
+  virtual ~Scheduler() = default;
+
   // Method to schedule an operation
-  void scheduleOp(mlir::Operation *op);
+  virtual void scheduleOp(mlir::Operation *op) = 0;
+
+  // Method to get the next set of schedulable operations
+  virtual llvm::SmallVector<mlir::Operation *> getScheduleableOps() = 0;
+
+  // Method to get the scheduled operations
+  virtual llvm::SmallVector<mlir::Operation *> getSchedule() = 0;
+
+  // Method to take a snapshot of the scheduler
+  virtual std::unique_ptr<Scheduler> snapshot() = 0;
 
   // Method to check if there are unscheduled operations
   bool hasUnscheduledOps() const;
 
-  // Method to get the next set of schedulable operations
-  llvm::SmallVector<mlir::Operation *> getScheduleableOps();
-
-  // Method to get the scheduled operations
-  llvm::SmallVector<mlir::Operation *> getSchedule() const;
-
-  // Method to take a snapshot of the scheduler
-  std::unique_ptr<Scheduler> snapshot();
-
-  // Method to check if an operation can be scheduled
-  bool canSchedule(mlir::Operation *op);
-
-private:
+protected:
   // Map of dependencies
   llvm::DenseMap<mlir::Operation *, llvm::SmallVector<mlir::Operation *>>
       dependencies;
