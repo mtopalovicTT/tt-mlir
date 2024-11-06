@@ -22,19 +22,19 @@ bool isTTIROp(mlir::Operation *op) {
 }
 
 bool isTTShedulableOp(mlir::Operation *op) {
-  return isTTNNOp(op) || isTTIROp(op);
+  return (isTTNNOp(op) || isTTIROp(op)) && (not isa<func::ReturnOp>(op));
 }
 
 // Init the dependencies map of all ops which are TTIR ops
 Scheduler::Scheduler(func::FuncOp *func) {
-  for (auto &op : func->getOps()) {
+  for (mlir::Operation &op : func->getOps()) {
     if (isTTShedulableOp(&op)) {
       dependencies[&op] = {};
       unscheduledOps.insert(&op);
     }
   }
 
-  for (auto &op : func->getOps()) {
+  for (mlir::Operation &op : func->getOps()) {
     // Skip non TTIR operations
     // Skip operations which do not implement DestinationStyleOpInterface
     if (!isTTShedulableOp(&op)) {
@@ -46,7 +46,7 @@ Scheduler::Scheduler(func::FuncOp *func) {
     for (mlir::Operation *use : result.getUsers()) {
       // Skip non TTIR operations
       // Skip operations which set the result
-      if (isTTShedulableOp(use) && use->getResult(0) != result) {
+      if (isTTShedulableOp(use)) {
         dependencies[use].push_back(&op);
       }
     }
@@ -54,9 +54,10 @@ Scheduler::Scheduler(func::FuncOp *func) {
 }
 
 Scheduler::Scheduler(const Scheduler &scheduler)
-    : scheduledOpsMap(scheduler.scheduledOpsMap), schedule(scheduler.schedule),
+    : dependencies(scheduler.dependencies),
       unscheduledOps(scheduler.unscheduledOps),
-      dependencies(scheduler.dependencies) {}
+      schedulableOps(scheduler.schedulableOps),
+      scheduledOps(scheduler.scheduledOps), schedule(scheduler.schedule) {}
 
 llvm::SmallVector<mlir::Operation *> Scheduler::getScheduleableOps() {
   llvm::SmallVector<mlir::Operation *> scheduleableOps;
@@ -71,7 +72,7 @@ llvm::SmallVector<mlir::Operation *> Scheduler::getScheduleableOps() {
 
 bool Scheduler::canSchedule(mlir::Operation *op) {
   for (mlir::Operation *dep : dependencies[op]) {
-    if (!scheduledOpsMap.count(dep)) {
+    if (!scheduledOps.count(dep)) {
       return false;
     }
   }
@@ -80,7 +81,7 @@ bool Scheduler::canSchedule(mlir::Operation *op) {
 }
 
 void Scheduler::scheduleOp(mlir::Operation *op) {
-  scheduledOpsMap.insert(op);
+  scheduledOps.insert(op);
   unscheduledOps.erase(op);
   schedule.push_back(op);
 }

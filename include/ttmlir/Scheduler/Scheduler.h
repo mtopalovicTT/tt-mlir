@@ -20,34 +20,36 @@ public:
   // Copy constructor
   Scheduler(const Scheduler &scheduler);
 
-  // Method to get the next set of schedulable operations
-  llvm::SmallVector<mlir::Operation *> getScheduleableOps();
-
-  // Method to check if an operation can be scheduled
-  bool canSchedule(mlir::Operation *op);
-
   // Method to schedule an operation
   void scheduleOp(mlir::Operation *op);
-
-  // Method to take a snapshot of the scheduler
-  std::unique_ptr<Scheduler> snapshot();
-
-  // Method to get the scheduled operations
-  llvm::SmallVector<mlir::Operation *> getSchedule() const;
 
   // Method to check if there are unscheduled operations
   bool hasUnscheduledOps() const;
 
+  // Method to get the next set of schedulable operations
+  llvm::SmallVector<mlir::Operation *> getScheduleableOps();
+
+  // Method to get the scheduled operations
+  llvm::SmallVector<mlir::Operation *> getSchedule() const;
+
+  // Method to take a snapshot of the scheduler
+  std::unique_ptr<Scheduler> snapshot();
+
+  // Method to check if an operation can be scheduled
+  bool canSchedule(mlir::Operation *op);
+
 private:
-  // Map of scheduled operations
-  llvm::DenseSet<mlir::Operation *> scheduledOpsMap;
-  // Operation schedule in order of execution
-  llvm::SmallVector<mlir::Operation *> schedule;
-  // Set of unscheduled operations
-  llvm::DenseSet<mlir::Operation *> unscheduledOps;
   // Map of dependencies
   llvm::DenseMap<mlir::Operation *, llvm::SmallVector<mlir::Operation *>>
       dependencies;
+
+  // Sets of unscheduled / schedulable / scheduled operations
+  llvm::DenseSet<mlir::Operation *> unscheduledOps;
+  llvm::SmallVector<mlir::Operation *> schedulableOps;
+  llvm::DenseSet<mlir::Operation *> scheduledOps;
+
+  // Operation schedule in order of execution
+  llvm::SmallVector<mlir::Operation *> schedule;
 };
 
 } // namespace mlir::tt::scheduler
