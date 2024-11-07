@@ -6,18 +6,58 @@
 
 namespace mlir::tt::scheduler {
 
-void PrecedenceScheduler::scheduleOp(mlir::Operation *op) { return; }
+PrecedenceScheduler::PrecedenceScheduler(func::FuncOp *root) : Scheduler(root) {
+  root->walk([&](mlir::Operation *op) {
+    if (op->hasTrait<mlir::OpTrait::ReturnLike>()) {
+      outputOp = op;
+    }
+  });
+}
+
+void PrecedenceScheduler::scheduleOp(mlir::Operation *op) {
+  unscheduledOps.erase(op);
+  schedulableOps.erase(op);
+  scheduledOps.insert(op);
+
+  OpResult result = op->getResult(0);
+  for (mlir::Operation *use : result.getUsers()) {
+    precedence[use].push_back(op);
+
+    // Check the schedulability of the user op after scheduling the current op
+    //
+    if (canSchedule(use)) {
+      schedulableOps.insert(use);
+    }
+  }
+}
 
 llvm::SmallVector<mlir::Operation *> PrecedenceScheduler::getScheduleableOps() {
-  return {};
+  return llvm::SmallVector<mlir::Operation *>(schedulableOps.begin(),
+                                              schedulableOps.end());
 }
 
 llvm::SmallVector<mlir::Operation *> PrecedenceScheduler::getSchedule() {
-  return {};
+  constructSchedule(outputOp);
+  return schedule;
 }
 
 std::unique_ptr<Scheduler> PrecedenceScheduler::snapshot() {
   return std::make_unique<PrecedenceScheduler>(*this);
+}
+
+void PrecedenceScheduler::constructSchedule(mlir::Operation *op) {
+  // Schedule all the precedents of the current operation
+  //
+  for (mlir::Operation *precedent : precedence[op]) {
+    if (!visitedOps.count(precedent)) {
+      constructSchedule(precedent);
+    }
+  }
+
+  // Schedule the current operation
+  //
+  visitedOps.insert(op);
+  schedule.push_back(op);
 }
 
 } // namespace mlir::tt::scheduler

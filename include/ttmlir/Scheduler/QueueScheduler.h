@@ -28,10 +28,6 @@ public:
 
   // Method to take a snapshot of the scheduler
   std::unique_ptr<Scheduler> snapshot() final;
-
-private:
-  // Method to check if an operation can be scheduled
-  bool canSchedule(mlir::Operation *op);
 };
 
 } // namespace mlir::tt::scheduler

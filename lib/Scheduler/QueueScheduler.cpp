@@ -31,14 +31,4 @@ std::unique_ptr<Scheduler> QueueScheduler::snapshot() {
   return std::make_unique<QueueScheduler>(*this);
 }
 
-bool QueueScheduler::canSchedule(mlir::Operation *op) {
-  for (mlir::Operation *dep : dependencies[op]) {
-    if (!scheduledOps.count(dep)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 } // namespace mlir::tt::scheduler

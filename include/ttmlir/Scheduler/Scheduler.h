@@ -42,6 +42,9 @@ public:
   // Method to check if there are unscheduled operations
   bool hasUnscheduledOps() const;
 
+  // Method to check if an operation can be scheduled
+  bool canSchedule(mlir::Operation *op);
+
 protected:
   // Map of dependencies
   llvm::DenseMap<mlir::Operation *, llvm::SmallVector<mlir::Operation *>>
@@ -49,7 +52,7 @@ protected:
 
   // Sets of unscheduled / schedulable / scheduled operations
   llvm::DenseSet<mlir::Operation *> unscheduledOps;
-  llvm::SmallVector<mlir::Operation *> schedulableOps;
+  llvm::DenseSet<mlir::Operation *> schedulableOps;
   llvm::DenseSet<mlir::Operation *> scheduledOps;
 
   // Operation schedule in order of execution

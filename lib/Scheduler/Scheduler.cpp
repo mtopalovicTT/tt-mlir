@@ -52,6 +52,13 @@ Scheduler::Scheduler(func::FuncOp *func) {
       }
     }
   }
+
+  // Find the schedulable ops
+  for (const auto &entry : dependencies) {
+    if (entry.second.empty()) {
+      schedulableOps.insert(entry.first);
+    }
+  }
 }
 
 Scheduler::Scheduler(const Scheduler &scheduler)
@@ -61,5 +68,15 @@ Scheduler::Scheduler(const Scheduler &scheduler)
       scheduledOps(scheduler.scheduledOps), schedule(scheduler.schedule) {}
 
 bool Scheduler::hasUnscheduledOps() const { return !unscheduledOps.empty(); }
+
+bool Scheduler::canSchedule(mlir::Operation *op) {
+  for (mlir::Operation *dep : dependencies[op]) {
+    if (!scheduledOps.count(dep)) {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 } // namespace mlir::tt::scheduler

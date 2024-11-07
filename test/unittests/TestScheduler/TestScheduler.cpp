@@ -18,6 +18,7 @@
 
 #include "ttmlir/Dialect/TT/IR/TT.h"
 #include "ttmlir/Dialect/TTIR/IR/TTIR.h"
+#include "ttmlir/Scheduler/PrecedenceScheduler.h"
 #include "ttmlir/Scheduler/QueueScheduler.h"
 
 #include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
@@ -243,4 +244,26 @@ TEST_F(SchedulerBase, VerifyFork) {
 
   scheduler.scheduleOp(scheduleableOps[0]);
   ASSERT_FALSE(scheduler.hasUnscheduledOps());
+}
+
+// This tests the precedenceScheduler with a single operation
+TEST_F(SchedulerBase, SingleOpPrecedenceScheduler) {
+  mlir::Value dest = createEmptyTensor();
+  mlir::Value lhs = func.getBody().getBlocks().front().getArgument(0);
+  mlir::Value rhs = func.getBody().getBlocks().front().getArgument(1);
+
+  mlir::ArrayAttr attrs = builder.getArrayAttr(createOperandConstraints());
+
+  // First operation has arg1 and arg2 and %0 as dps operand
+  ttir::TTIROp op = builder.create<ttir::AddOp>(builder.getUnknownLoc(), lhs,
+                                                rhs, dest, attrs);
+
+  mlir::tt::scheduler::PrecedenceScheduler scheduler(&func);
+  ASSERT_TRUE(scheduler.hasUnscheduledOps());
+  llvm::SmallVector<mlir::Operation *> scheduleableOps =
+      scheduler.getScheduleableOps();
+  ASSERT_EQ(scheduleableOps.size(), 1);
+  scheduler.scheduleOp(scheduleableOps[0]);
+  ASSERT_FALSE(scheduler.hasUnscheduledOps());
+  ASSERT_EQ(scheduleableOps[0], op.getOperation());
 }
