@@ -22,7 +22,8 @@ bool isTTIROp(mlir::Operation *op) {
 }
 
 bool isTTShedulableOp(mlir::Operation *op) {
-  return (isTTNNOp(op) || isTTIROp(op)) && (not isa<func::ReturnOp>(op));
+  return (isTTNNOp(op) || isTTIROp(op)) &&
+         (not op->hasTrait<mlir::OpTrait::ReturnLike>());
 }
 
 // Init the dependencies map of all ops which are TTIR ops
