@@ -25,6 +25,7 @@
 #include "operations/normalization/softmax.h"
 #include "operations/pool/maxpool2d.h"
 #include "operations/reduction/reduction.h"
+#include "tt/runtime/detail/debug.h"
 #include "tt/runtime/detail/logger.h"
 #include "tt/runtime/ttnn/types.h"
 #include "ttmlir/Target/TTNN/program_generated.h"
@@ -87,74 +88,120 @@ void ProgramExecutor::runEltwiseOperation(
 void ProgramExecutor::runOperation(const ::tt::target::ttnn::Operation *op) {
   switch (op->type_type()) {
   case ::tt::target::ttnn::OpType::GetDeviceOp: {
-    return operations::context::run(op->type_as_GetDeviceOp(), context);
+    auto childOp = op->type_as_GetDeviceOp();
+    operations::context::run(childOp, context);
+    break;
   }
   case ::tt::target::ttnn::OpType::ToMemoryConfigOp: {
-    return operations::layout::run(op->type_as_ToMemoryConfigOp(), context);
+    auto childOp = op->type_as_ToMemoryConfigOp();
+    operations::layout::run(childOp, context);
+    break;
   }
   case ::tt::target::ttnn::OpType::ToLayoutOp: {
-    return operations::layout::run(op->type_as_ToLayoutOp(), context);
+    auto childOp = op->type_as_ToLayoutOp();
+    operations::layout::run(childOp, context);
+    break;
   }
   case ::tt::target::ttnn::OpType::TypecastOp: {
-    return operations::layout::run(op->type_as_TypecastOp(), context);
+    auto childOp = op->type_as_TypecastOp();
+    operations::layout::run(childOp, context);
+    break;
   }
   case ::tt::target::ttnn::OpType::ToDeviceOp: {
-    return operations::layout::run(op->type_as_ToDeviceOp(), context);
+    auto childOp = op->type_as_ToDeviceOp();
+    operations::layout::run(childOp, context);
+    break;
   }
   case ::tt::target::ttnn::OpType::FromDeviceOp: {
-    return operations::layout::run(op->type_as_FromDeviceOp(), context);
+    auto childOp = op->type_as_FromDeviceOp();
+    operations::layout::run(childOp, context);
+    break;
   }
   case ::tt::target::ttnn::OpType::EmptyOp: {
-    return operations::creation::run(op->type_as_EmptyOp(), context);
+    auto childOp = op->type_as_EmptyOp();
+    operations::creation::run(childOp, context);
+    break;
   }
   case ::tt::target::ttnn::OpType::FullOp: {
-    return operations::creation::run(op->type_as_FullOp(), context);
+    auto childOp = op->type_as_FullOp();
+    operations::creation::run(childOp, context);
+    break;
   }
   case ::tt::target::ttnn::OpType::EltwiseOp: {
-    const ::tt::target::ttnn::EltwiseOp *eltwiseOp = op->type_as_EltwiseOp();
-    return runEltwiseOperation(eltwiseOp);
+    auto childOp = op->type_as_EltwiseOp();
+    runEltwiseOperation(childOp);
+    break;
   }
   // ANCHOR: adding_an_op_matmul_runtime_program
   case ::tt::target::ttnn::OpType::MatmulOp: {
-    return operations::matmul::run(op->type_as_MatmulOp(), context);
+    auto childOp = op->type_as_MatmulOp();
+    operations::matmul::run(childOp, context);
+    break;
   }
   // ANCHOR_END: adding_an_op_matmul_runtime_program
   case ::tt::target::ttnn::OpType::ReductionOp: {
-    return operations::reduction::run(op->type_as_ReductionOp(), context);
+    auto childOp = op->type_as_ReductionOp();
+    operations::reduction::run(childOp, context);
+    break;
   }
   case ::tt::target::ttnn::OpType::EmbeddingOp: {
-    return operations::embedding::run(op->type_as_EmbeddingOp(), context);
+    auto childOp = op->type_as_EmbeddingOp();
+    operations::embedding::run(childOp, context);
+    break;
   }
   case ::tt::target::ttnn::OpType::SoftmaxOp: {
-    return operations::normalization::run(op->type_as_SoftmaxOp(), context);
+    auto childOp = op->type_as_SoftmaxOp();
+    operations::normalization::run(childOp, context);
+    break;
   }
   case ::tt::target::ttnn::OpType::TransposeOp: {
-    return operations::data_movement::run(op->type_as_TransposeOp(), context);
+    auto childOp = op->type_as_TransposeOp();
+    operations::data_movement::run(childOp, context);
+    break;
   }
   case ::tt::target::ttnn::OpType::ConcatOp: {
-    return operations::data_movement::run(op->type_as_ConcatOp(), context);
+    auto childOp = op->type_as_ConcatOp();
+    operations::data_movement::run(childOp, context);
+    break;
   }
   case ::tt::target::ttnn::OpType::ReshapeOp: {
-    return operations::data_movement::run(op->type_as_ReshapeOp(), context);
+    auto childOp = op->type_as_ReshapeOp();
+    operations::data_movement::run(childOp, context);
+    break;
   }
   case ::tt::target::ttnn::OpType::SliceOp: {
-    return operations::data_movement::run(op->type_as_SliceOp(), context);
+    auto childOp = op->type_as_SliceOp();
+    operations::data_movement::run(childOp, context);
+    break;
   }
   case ::tt::target::ttnn::OpType::Conv2dOp: {
-    return operations::conv::run(op->type_as_Conv2dOp(), context);
+    auto childOp = op->type_as_Conv2dOp();
+    operations::conv::run(childOp, context);
+    break;
   }
   case ::tt::target::ttnn::OpType::DeallocOp: {
-    return operations::deletion::run(op->type_as_DeallocOp(), context);
+    auto childOp = op->type_as_DeallocOp();
+    return operations::deletion::run(childOp, context);
+    break;
   }
   case ::tt::target::ttnn::OpType::MaxPool2dOp: {
-    return operations::pool::run(op->type_as_MaxPool2dOp(), context);
+    auto childOp = op->type_as_MaxPool2dOp();
+    operations::pool::run(childOp, context);
+    break;
   }
   case ::tt::target::ttnn::OpType::AllGatherOp: {
-    return operations::ccl::run(op->type_as_AllGatherOp(), context);
+    auto childOp = op->type_as_AllGatherOp();
+    operations::ccl::run(childOp, context);
+    break;
   }
   default: {
     throw std::runtime_error("Unsupported operation type");
   }
+  }
+
+  if (auto callback = debug::Hooks::get().getOperatorCallback(); callback) {
+    (*callback)(static_cast<const void *>(&context),
+                static_cast<const void *>(op));
   }
 }
 

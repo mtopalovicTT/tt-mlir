@@ -7,12 +7,14 @@ table GetDeviceOp {
   mesh: Dim2d;
   chip_ids: [uint32];
   out: tt.target.DeviceRef;
+  debug_info: string;
 }
 
 table ToMemoryConfigOp {
   in0: tt.target.TensorRef;
   memcfg: MemoryConfigDesc;
   out: tt.target.TensorRef;
+  debug_info: string;
 }
 
 table ToLayoutOp {
@@ -22,12 +24,14 @@ table ToLayoutOp {
   memcfg: tt.target.MemoryConfigDesc;
   device: tt.target.DeviceRef;
   out: tt.target.TensorRef;
+  debug_info: string;
 }
 
 table TypecastOp {
   in: tt.target.TensorRef;
   dtype: tt.target.DataType;
   out: tt.target.TensorRef;
+  debug_info: string;
 }
 
 table ToDeviceOp {
@@ -35,11 +39,13 @@ table ToDeviceOp {
   device: tt.target.DeviceRef;
   memcfg: tt.target.MemoryConfigDesc;
   out: tt.target.TensorRef;
+  debug_info: string;
 }
 
 table FromDeviceOp {
   in: tt.target.TensorRef;
   out: tt.target.TensorRef;
+  debug_info: string;
 }
 
 table EmptyOp {
@@ -51,6 +57,7 @@ table EmptyOp {
   memcfg: tt.target.MemoryConfigDesc;  // optional
   strategy: tt.target.DistributionStrategy;
   out: tt.target.TensorRef;
+  debug_info: string;
 }
 
 table FullOp {
@@ -59,6 +66,7 @@ table FullOp {
   num_shards: uint32;
   strategy: tt.target.DistributionStrategy;
   out: tt.target.TensorRef;
+  debug_info: string;
 }
 
 enum EltwiseOpType: uint32 {
@@ -108,6 +116,7 @@ table EltwiseOp {
   ins: [tt.target.TensorRef];
   out: tt.target.TensorRef;
   params: EltwiseOpParams;
+  debug_info: string;
 }
 
 enum ReductionOpType: uint32 {
@@ -122,18 +131,21 @@ table ReductionOp {
   out: tt.target.TensorRef;
   dim_arg: [int32];
   keep_dim: bool;
+  debug_info: string;
 }
 
 table EmbeddingOp {
   input: tt.target.TensorRef;
   weight: tt.target.TensorRef;
   out: tt.target.TensorRef;
+  debug_info: string;
 }
 
 table SoftmaxOp {
   in: tt.target.TensorRef;
   out: tt.target.TensorRef;
   dimension: int32;
+  debug_info: string;
 }
 
 table TransposeOp {
@@ -141,18 +153,21 @@ table TransposeOp {
   out: tt.target.TensorRef;
   dim0: int32;
   dim1: int32;
+  debug_info: string;
 }
 
 table ConcatOp {
  inputs: [tt.target.TensorRef];
  out: tt.target.TensorRef;
  dim: int32;
+ debug_info: string;
 }
 
 table ReshapeOp {
   in: tt.target.TensorRef;
   out: tt.target.TensorRef;
   shape: [int32];
+  debug_info: string;
 }
 
 table SliceOp {
@@ -161,6 +176,7 @@ table SliceOp {
   begins: [int64];
   ends: [int64];
   step: [int64];
+  debug_info: string;
 }
 
 // ANCHOR: adding_an_op_matmul_fbs
@@ -168,6 +184,7 @@ table MatmulOp {
   in0: tt.target.TensorRef;
   in1: tt.target.TensorRef;
   out: tt.target.TensorRef;
+  debug_info: string;
 }
 // ANCHOR_END: adding_an_op_matmul_fbs
 
@@ -191,6 +208,7 @@ table Conv2dOp {
   dilation_height: uint32;
   dilation_width: uint32;
   groups: uint32;
+  debug_info: string;
 }
 
 table MaxPool2dOp {
@@ -210,10 +228,12 @@ table MaxPool2dOp {
   ceil_mode: bool;
   padding_height: uint32;
   padding_width: uint32;
+  debug_info: string;
 }
 
 table DeallocOp {
   in: tt.target.TensorRef;
+  debug_info: string;
 }
 
 table AllGatherOp {
@@ -221,6 +241,7 @@ table AllGatherOp {
   out: tt.target.TensorRef;
   dim: uint32;
   num_links: uint32;
+  debug_info: string;
 }
 
 union OpType {
