@@ -16,7 +16,7 @@ PrecedenceScheduler::PrecedenceScheduler(func::FuncOp *root) : Scheduler(root) {
 
 void PrecedenceScheduler::scheduleOp(mlir::Operation *op) {
   unscheduledOps.erase(op);
-  schedulableOps.erase(op);
+  scheduleableOps.erase(op);
   scheduledOps.insert(op);
 
   OpResult result = op->getResult(0);
@@ -26,14 +26,14 @@ void PrecedenceScheduler::scheduleOp(mlir::Operation *op) {
     // Check the schedulability of the user op after scheduling the current op
     //
     if (canSchedule(use)) {
-      schedulableOps.insert(use);
+      scheduleableOps.insert(use);
     }
   }
 }
 
 llvm::SmallVector<mlir::Operation *> PrecedenceScheduler::getScheduleableOps() {
-  return llvm::SmallVector<mlir::Operation *>(schedulableOps.begin(),
-                                              schedulableOps.end());
+  return llvm::SmallVector<mlir::Operation *>(scheduleableOps.begin(),
+                                              scheduleableOps.end());
 }
 
 llvm::SmallVector<mlir::Operation *> PrecedenceScheduler::getSchedule() {

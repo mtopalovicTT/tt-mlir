@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ttmlir/Dialect/TTNN/Analysis/MemoryLayoutAnalysis.h"
+#include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
 #include "ttmlir/Dialect/TTNN/Analysis/DFShardingPolicy.h"
 #include "ttmlir/Dialect/TTNN/Analysis/L1InterleavedPolicy.h"
 
@@ -35,14 +36,15 @@ filterShardedOnly(const llvm::DenseMap<Operation *, std::vector<tt::LayoutAttr>>
 }
 
 llvm::DenseMap<Operation *, std::vector<tt::LayoutAttr>>
-filterL1InterleavedOnly(
+filterDRAMAndL1Interleaved(
     const llvm::DenseMap<Operation *, std::vector<tt::LayoutAttr>>
         &legalLayouts) {
   llvm::DenseMap<Operation *, std::vector<tt::LayoutAttr>> l1InterleavedLayouts;
   for (const auto &opLayouts : legalLayouts) {
     std::vector<tt::LayoutAttr> opL1InterleavedLayouts;
     for (const auto &layout : opLayouts.second) {
-      if (layout.hasInterleavedL1TensorMemoryLayout()) {
+      if (layout.getMemorySpace() == MemorySpace::DeviceDRAM ||
+          layout.hasInterleavedL1TensorMemoryLayout()) {
         opL1InterleavedLayouts.push_back(layout);
       }
     }
@@ -68,7 +70,8 @@ void MemoryLayoutAnalysis::analysisImplementation() {
   }
   case MemoryLayoutAnalysisPolicyType::L1Interleaved: {
     L1InterleavedPolicy l1InterleavedPolicy(
-        op, l1ChainConfigs, filterL1InterleavedOnly(analysisInput.legalLayouts),
+        op, l1ChainConfigs,
+        filterDRAMAndL1Interleaved(analysisInput.legalLayouts),
         analysisResult.schedule, analysisInput.usableL1CacheSize);
     l1InterleavedPolicy.run();
     break;

@@ -56,7 +56,7 @@ Scheduler::Scheduler(func::FuncOp *func) {
   // Find the schedulable ops
   for (const auto &entry : dependencies) {
     if (entry.second.empty()) {
-      schedulableOps.insert(entry.first);
+      scheduleableOps.insert(entry.first);
     }
   }
 }
@@ -64,7 +64,7 @@ Scheduler::Scheduler(func::FuncOp *func) {
 Scheduler::Scheduler(const Scheduler &scheduler)
     : dependencies(scheduler.dependencies),
       unscheduledOps(scheduler.unscheduledOps),
-      schedulableOps(scheduler.schedulableOps),
+      scheduleableOps(scheduler.scheduleableOps),
       scheduledOps(scheduler.scheduledOps), schedule(scheduler.schedule) {}
 
 bool Scheduler::hasUnscheduledOps() const { return !unscheduledOps.empty(); }

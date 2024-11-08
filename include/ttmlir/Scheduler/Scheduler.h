@@ -30,6 +30,7 @@ public:
   // Method to schedule an operation
   virtual void scheduleOp(mlir::Operation *op) = 0;
 
+  // TODO(fbajraktari): Convert it to llvm::DenseSet
   // Method to get the next set of schedulable operations
   virtual llvm::SmallVector<mlir::Operation *> getScheduleableOps() = 0;
 
@@ -52,7 +53,7 @@ protected:
 
   // Sets of unscheduled / schedulable / scheduled operations
   llvm::DenseSet<mlir::Operation *> unscheduledOps;
-  llvm::DenseSet<mlir::Operation *> schedulableOps;
+  llvm::DenseSet<mlir::Operation *> scheduleableOps;
   llvm::DenseSet<mlir::Operation *> scheduledOps;
 
   // Operation schedule in order of execution

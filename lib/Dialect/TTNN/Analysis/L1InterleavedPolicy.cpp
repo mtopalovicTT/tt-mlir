@@ -4,16 +4,87 @@
 
 #include "ttmlir/Dialect/TTNN/Analysis/L1InterleavedPolicy.h"
 #include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
-#include "ttmlir/Dialect/TTNN/IR/TTNNOps.h"
-#include "ttmlir/Scheduler/QueueScheduler.h"
+#include "ttmlir/Scheduler/PrecedenceScheduler.h"
+#include <mlir/Dialect/Func/IR/FuncOps.h>
+#include <mlir/IR/Operation.h>
 
 namespace mlir::tt::ttnn {
 
-uint64_t getOpOutputLayoutUsage(
-    Operation *op,
-    llvm::DenseMap<Operation *, std::vector<tt::LayoutAttr>> &legalLayouts,
-    DeviceAttr &deviceAttr) {
-  tt::LayoutAttr opLayout = legalLayouts.lookup(op).front();
+bool L1InterleavedPolicy::hasDRAMLayout(mlir::Operation *op) {
+  return std::find_if(legalLayouts[op].begin(), legalLayouts[op].end(),
+                      [](tt::LayoutAttr layout) {
+                        return layout.getMemorySpace() ==
+                               tt::MemorySpace::DeviceDRAM;
+                      }) != legalLayouts[op].end();
+}
+
+tt::LayoutAttr L1InterleavedPolicy::getDRAMLayout(mlir::Operation *op) {
+  assert(hasDRAMLayout(op));
+  auto dramLayoutIter = std::find_if(
+      legalLayouts[op].begin(), legalLayouts[op].end(),
+      [](tt::LayoutAttr layout) {
+        return layout.getMemorySpace() == tt::MemorySpace::DeviceDRAM;
+      });
+  return *dramLayoutIter;
+}
+
+bool L1InterleavedPolicy::hasL1InterleavedLayout(mlir::Operation *op) {
+  return std::find_if(legalLayouts[op].begin(), legalLayouts[op].end(),
+                      [](tt::LayoutAttr layout) {
+                        return layout.hasInterleavedL1TensorMemoryLayout();
+                      }) != legalLayouts[op].end();
+}
+
+tt::LayoutAttr
+L1InterleavedPolicy::getL1InterleavedLayout(mlir::Operation *op) {
+  assert(hasL1InterleavedLayout(op));
+  auto l1InterleaveLayoutIter =
+      std::find_if(legalLayouts[op].begin(), legalLayouts[op].end(),
+                   [](tt::LayoutAttr layout) {
+                     return layout.hasInterleavedL1TensorMemoryLayout();
+                   });
+  return *l1InterleaveLayoutIter;
+}
+
+void L1InterleavedPolicy::run() {
+  rootOp->walk([&](func::FuncOp func) {
+    // DeviceAttr deviceAttr = getCurrentScopeDevice(func);
+
+    // Create mapping from MLIR op to OpNode
+    //
+    llvm::DenseMap<mlir::Operation *, OpNode> opNodeMap;
+    func->walk([&](Operation *op) {
+      OpNode opNode;
+
+      // Fill in the OpNode
+      opNode.op = op;
+
+      // Insert the OpNode
+      opNodeMap[op] = opNode;
+    });
+
+    // Start the policy.
+    //
+    mlir::tt::scheduler::PrecedenceScheduler scheduler(&func);
+    llvm::SmallVector<mlir::Operation *> scheduleableOps;
+
+    while (scheduler.hasUnscheduledOps()) {
+      scheduleableOps = scheduler.getScheduleableOps();
+
+      for (mlir::Operation *op : scheduleableOps) {
+        // In the current implementation (V2) of the L1InterleavedPolicy, we do
+        // not deal with fork ops.
+        //
+        if (op->hasOneUse()) {
+          ;
+        }
+      }
+    }
+  });
+}
+
+uint64_t getOutputL1Usage(Operation *op, tt::LayoutAttr opLayout,
+                          DeviceAttr &deviceAttr) {
   assert(opLayout.hasInterleavedL1TensorMemoryLayout());
 
   llvm::ArrayRef<int64_t> opOutputTensorShape =
@@ -22,134 +93,6 @@ uint64_t getOpOutputLayoutUsage(
   uint64_t opL1OutputUsage = deviceAttr.getLayoutSizeBytes(
       opOutputTensorShape, opLayout, opLayout.getMemorySpace());
   return opL1OutputUsage;
-}
-
-void L1InterleavedPolicy::run() {
-  rootOp->walk([&](func::FuncOp func) {
-    DeviceAttr deviceAttr = getCurrentScopeDevice(func);
-    mlir::tt::scheduler::QueueScheduler scheduler(&func);
-    llvm::SmallVector<mlir::Operation *> scheduleableOps;
-    llvm::DenseMap<Operation *, tt::LayoutAttr> selectedOpLayout;
-    Operation *currentOp = nullptr;
-
-    // TODO(fbajraktari): Add algorithm description. Currently, the algorithm
-    // is the same as for DFSharding policy, but works only for L1 interleaved.
-    //
-    l1ChainConfigs->push_back(L1ChainConfig());
-    while (scheduler.hasUnscheduledOps()) {
-      scheduleableOps = scheduler.getScheduleableOps();
-
-      // Before starting a l1 chain, schedule layout/memory management ops
-      // first until they are exhausted from schedulable ops.
-      //
-      if (l1ChainConfigs->back().isEmpty()) {
-        for (auto *op : scheduleableOps) {
-          if (isa<ToLayoutOp>(op)) {
-            currentOp = op;
-            break;
-          }
-        }
-      }
-
-      if (currentOp == nullptr) {
-        currentOp = scheduleableOps[0];
-      }
-
-      // Schedule currentOp.
-      //
-      scheduler.scheduleOp(currentOp);
-
-      // Skip starting sharding chain if currentOp is a memory management op.
-      //
-      if (l1ChainConfigs->back().isEmpty() && isa<ToLayoutOp>(currentOp)) {
-        currentOp = nullptr;
-        continue;
-      }
-
-      if (scheduler.hasUnscheduledOps()) {
-        scheduleableOps = scheduler.getScheduleableOps();
-
-        // Check if currentOp has a valid successor.
-        //
-        Operation *nextOp = nullptr;
-        for (auto *op : scheduleableOps) {
-          for (auto operand : op->getOperands()) {
-            if (operand.getDefiningOp() == currentOp) {
-              nextOp = op;
-              break;
-            }
-          }
-        }
-
-        if (nextOp) {
-
-          // V1: Check that currentOp is not fork/join op.
-          //
-          bool validForL1Interleaved =
-              currentOp->hasOneUse() &&
-              legalLayouts.lookup(currentOp).size() > 0 &&
-              legalLayouts.lookup(nextOp).size() > 0;
-
-          if (validForL1Interleaved) {
-            // Figure out this const based on exec data, but will be replaced
-            // with API.
-            //
-            constexpr float tensorL1UsageCap = 0.8;
-            uint64_t currentOpL1OutputUsage =
-                getOpOutputLayoutUsage(currentOp, legalLayouts, deviceAttr);
-            uint64_t nextOpL1OutputUsage =
-                getOpOutputLayoutUsage(nextOp, legalLayouts, deviceAttr);
-            bool l1UsageValid = (currentOpL1OutputUsage + nextOpL1OutputUsage) <
-                                tensorL1UsageCap * usableL1CacheSize;
-
-            if (l1UsageValid) {
-              selectedOpLayout[currentOp] =
-                  legalLayouts.lookup(currentOp).front();
-
-              // Add currentOp to l1 chain config.
-              //
-              OpL1MemSpec shardSpec;
-              shardSpec.op = currentOp;
-
-              // Hardcoded tensor split factor for now, until pipeline OP
-              // support is added.
-              //
-              shardSpec.tensorSplitFactor = 1;
-              l1ChainConfigs->back().addOpL1MemSpec(std::move(shardSpec));
-
-              // Update currentOp pointer.
-              //
-              currentOp = nextOp;
-              continue;
-            }
-          }
-        }
-
-        currentOp = nullptr;
-        if (!l1ChainConfigs->back().isEmpty()) {
-          l1ChainConfigs->back().build();
-          l1ChainConfigs->push_back(L1ChainConfig());
-        }
-      }
-    }
-
-    if (l1ChainConfigs->back().isEmpty()) {
-      l1ChainConfigs->pop_back();
-    }
-
-    // Schedule
-    //
-    (*schedule)[func] = scheduler.getSchedule();
-
-    // Resolve l1 chain configs.
-    //
-    for (auto &l1ChainConfig : *l1ChainConfigs) {
-      l1ChainConfig.resolve();
-
-      std::unordered_set<Edge> memReconfigEdges;
-      l1ChainConfig.complete(selectedOpLayout, memReconfigEdges);
-    }
-  });
 }
 
 } // namespace mlir::tt::ttnn
