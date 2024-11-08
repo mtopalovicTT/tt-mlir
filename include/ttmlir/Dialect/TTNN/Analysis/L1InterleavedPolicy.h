@@ -9,6 +9,7 @@
 #include "ttmlir/Dialect/TT/IR/TTOpsTypes.h"
 #include "ttmlir/Dialect/TTNN/Analysis/L1ChainConfig.h"
 #include "ttmlir/Dialect/TTNN/Analysis/MemoryLayoutAnalysisPolicy.h"
+#include <cstdint>
 
 namespace mlir::tt::ttnn {
 
@@ -41,13 +42,26 @@ public:
   void run() final;
 
 private:
-  // Fetch op's DRAM layout from legalLayouts
+  // Mapping from MLIR op to OpNode.
+  llvm::DenseMap<Operation *, OpNode> opNodeMap;
+
+  // Fetch op's DRAM layout from legalLayouts.
   bool hasDRAMLayout(Operation *op);
   tt::LayoutAttr getDRAMLayout(Operation *op);
 
-  // Fetch op's L1 Interleaved layout from legalLayouts
+  // Fetch op's L1 Interleaved layout from legalLayouts.
   bool hasL1InterleavedLayout(Operation *op);
   tt::LayoutAttr getL1InterleavedLayout(Operation *op);
+
+  // Check if the input of the op is legal based on a current
+  // state of the graph.
+  bool isOpInputLegal(Operation *op, DeviceAttr &deviceAttr);
+
+  // Calculate the op's input L1 memory usage.
+  uint64_t getOpInputL1Usage(Operation *op, DeviceAttr &deviceAttr);
+
+  // Calculate the op's
+  uint64_t getOpMaxL1Usage(Operation *op, DeviceAttr &deviceAttr);
 };
 
 } // namespace mlir::tt::ttnn
