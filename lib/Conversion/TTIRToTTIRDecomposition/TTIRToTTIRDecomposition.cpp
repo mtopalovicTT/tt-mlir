@@ -414,16 +414,21 @@ struct GatherToEmbeddingConversionPattern
 
   LogicalResult checkBasicLegality(ttir::GatherOp op,
                                    PatternRewriter &rewriter) const {
+
     // variables for embedding pattern matching checks
     auto outputType = mlir::cast<RankedTensorType>(op.getResult().getType());
     auto shape = outputType.getShape();
-    auto startIndices = op.getStartIndices(); // start indices of the gather op
+
+    // start indices of the gather op:
+    auto startIndices = op.getStartIndices();
     auto startIndicesType =
         mlir::cast<RankedTensorType>(startIndices.getType());
-    auto sliceSizes = op.getSliceSizes(); // slice sizes of the gather op
+
+    // slice sizes of the gather op
+    auto sliceSizes = op.getSliceSizes();
     auto offsetDims = op.getOffsetDims();
-    auto collapsedSliceDims =
-        op.getCollapsedSliceDims(); // collapsed slice dims of the gather op
+    // collapsed slice dims of the gather op
+    auto collapsedSliceDims = op.getCollapsedSliceDims();
 
     if (shape.size() > 1) {
       auto hiddenDim = shape[shape.size() - 1];
@@ -476,18 +481,25 @@ struct GatherToEmbeddingConversionPattern
         loc, mlir::RankedTensorType::get(shapei64, ty.getElementType()), input,
         output, shape_attr, operandConstraints);
   }
+
   LogicalResult
   matchAndRewrite(ttir::GatherOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+
+    // check if legal to convert to embedding
     LogicalResult err = checkBasicLegality(op, rewriter);
     if (not err.succeeded()) {
       return err;
     }
     auto outputType = mlir::cast<RankedTensorType>(op.getResult().getType());
     auto shape = outputType.getShape();
-    auto startIndices = op.getStartIndices(); // start indices of the gather op
+
+    // start indices of the gather op
+    auto startIndices = op.getStartIndices();
     auto startIndicesType =
         mlir::cast<RankedTensorType>(startIndices.getType());
+
+    // check if start indices need to be reshaped
     ::mlir::Value input = op.getStartIndices();
     if (shape.size() == startIndicesType.getShape().size() &&
         startIndicesType.getShape()[shape.size() - 1] == 1) {
@@ -506,15 +518,13 @@ struct GatherToEmbeddingConversionPattern
       input = reshapeOp.getResult();
     }
 
+    // convert gather to embedding, use reshaped input if needed
     ttir::EmbeddingOp embeddingOp = rewriter.create<ttir::EmbeddingOp>(
-        op.getLoc(), op.getResult().getType(),
-        input,               // input - start indices
-        op.getOperands()[0], // weight - input tensor
+        op.getLoc(), op.getResult().getType(), input, op.getOperands()[0],
         op.getOutput(),
-        rewriter.getArrayAttr( // operand constraints
-            SmallVector<Attribute>(op.getNumOperands() + 1,
-                                   rewriter.getAttr<OperandConstraintAttr>(
-                                       OperandConstraint::AnyDeviceTile))));
+        rewriter.getArrayAttr(SmallVector<Attribute>(
+            op.getNumOperands() + 1, rewriter.getAttr<OperandConstraintAttr>(
+                                         OperandConstraint::AnyDeviceTile))));
 
     assert(embeddingOp != nullptr && "Failed to create embedding op");
     rewriter.replaceOp(op, embeddingOp);
