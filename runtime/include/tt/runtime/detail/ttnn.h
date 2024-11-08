@@ -111,11 +111,29 @@ void closeDevice(Device device);
 
 void deallocateBuffers(Device device);
 
+Tensor toHost(Tensor tensor);
+
+Tensor ToDevice(Tensor tensor, Device device);
+
+// TODO (jnie): Implement me
+Tensor ToDevice(Tensor tensor, Device device, Layout layout);
+
+// TODO (jnie): Implement me
+Tensor ToLayout(Tensor tensor, Layout layout);
+
+void deallocateTensor(Tensor tensor, bool force = false);
+
+Layout getLayout(Binary bin, std::uint32_t programIndex,
+                 std::uint32_t inputIndex);
+
 Event submit(Device device, Binary executable, std::uint32_t programIndex,
              std::vector<Tensor> const &inputs,
              std::vector<Tensor> const &outputs);
 
 void wait(Event event);
+
+// TODO (jnie): Implement me
+void wait(Tensor tensor);
 
 void runProgram(::ttnn::MeshDevice &meshDevice,
                 ::tt::target::ttnn::Program const *program,

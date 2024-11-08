@@ -6,6 +6,7 @@
 #include "tt/runtime/detail/ttnn.h"
 #include "tt/runtime/ttnn/operations/eltwise/unary/utils.h"
 #include "tt/runtime/ttnn/operations/utils.h"
+#include "tt/runtime/ttnn/utils.h"
 #include "ttnn/operations/copy.hpp"
 
 namespace tt::runtime::ttnn::operations::unary {
@@ -22,7 +23,7 @@ static void runEltwiseUnaryOP(
   getEltwiseUnaryOPInputTensor(op, tensorPool, &in);
 
   ::tt::tt_metal::MemoryConfig outputMemoryConfig =
-      utils::createMemoryConfig(op->out());
+      ::tt::runtime::ttnn::utils::createMemoryConfig(op->out());
 
   ::ttnn::Tensor out = ttnnOp(*in, outputMemoryConfig, std::nullopt);
   tensorPool.insert_or_assign(op->out()->global_id(), out);
@@ -40,7 +41,7 @@ static void runEltwiseUnaryWithFastAndApproximateModeOP(
   getEltwiseUnaryOPInputTensor(op, tensorPool, &in);
 
   ::tt::tt_metal::MemoryConfig outputMemoryConfig =
-      utils::createMemoryConfig(op->out());
+      ::tt::runtime::ttnn::utils::createMemoryConfig(op->out());
 
   ::ttnn::Tensor out =
       ttnnOp(*in, false /* parameter */, outputMemoryConfig, std::nullopt);

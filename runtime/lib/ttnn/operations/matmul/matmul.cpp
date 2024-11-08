@@ -7,6 +7,7 @@
 #include "tt/runtime/detail/ttnn.h"
 #include "tt/runtime/detail/workarounds.h"
 #include "tt/runtime/ttnn/operations/utils.h"
+#include "tt/runtime/ttnn/utils.h"
 #include <optional>
 
 // ANCHOR: adding_an_op_matmul_runtime_operations
@@ -88,7 +89,7 @@ void run(const ::tt::target::ttnn::MatmulOp *op, ProgramContext &context) {
   DEBUG_ASSERT(rhs.is_allocated());
   ::ttnn::DataType outputDataType = utils::getDataType(op->out());
   ::tt::tt_metal::MemoryConfig outputMemoryConfig =
-      utils::createMemoryConfig(op->out());
+      ::tt::runtime::ttnn::utils::createMemoryConfig(op->out());
 
   std::optional<
       ::ttnn::operations::matmul::MatmulMultiCoreReuseMultiCast1DProgramConfig>

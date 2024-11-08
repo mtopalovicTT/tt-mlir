@@ -5,6 +5,7 @@
 #include "tt/runtime/detail/debug.h"
 #include "tt/runtime/detail/logger.h"
 #include "tt/runtime/detail/ttnn.h"
+#include "tt/runtime/ttnn/types.h"
 #include "tt/runtime/ttnn/utils.h"
 #include "tt/runtime/utils.h"
 #include "ttmlir/Target/TTNN/Target.h"
@@ -64,6 +65,22 @@ createOwnedTensor(std::shared_ptr<void> data,
   return ::ttnn::Tensor(
       createStorage<OwnedStorage>(data.get(), numElements, dataType), shape,
       utils::toTTNNDataType(dataType), ::ttnn::Layout::ROW_MAJOR);
+}
+
+static DeviceVariant getTargetDevice(::ttnn::MeshDevice &meshDevice) {
+  if (meshDevice.num_devices() == 1) {
+    return std::ref(*(meshDevice.get_device_index(0)));
+  }
+  return std::ref(meshDevice);
+}
+
+static ::tt::target::ttnn::TTNNBinary const *getBinary(Flatbuffer binary) {
+  bool isTTNN = ::tt::target::ttnn::SizePrefixedTTNNBinaryBufferHasIdentifier(
+      binary.handle.get());
+  if (not isTTNN) {
+    throw std::runtime_error("Unsupported binary format");
+  }
+  return ::tt::target::ttnn::GetSizePrefixedTTNNBinary(binary.handle.get());
 }
 
 Tensor createTensor(std::shared_ptr<void> data,
@@ -151,13 +168,51 @@ void deallocateBuffers(Device deviceHandle) {
   }
 }
 
-static ::tt::target::ttnn::TTNNBinary const *getBinary(Flatbuffer binary) {
-  bool isTTNN = ::tt::target::ttnn::SizePrefixedTTNNBinaryBufferHasIdentifier(
-      binary.handle.get());
-  if (not isTTNN) {
-    throw std::runtime_error("Unsupported binary format");
-  }
-  return ::tt::target::ttnn::GetSizePrefixedTTNNBinary(binary.handle.get());
+Tensor ToHost(Tensor tensor) {
+  const ::ttnn::Tensor &deviceTensor =
+      tensor.as<::ttnn::Tensor>(DeviceRuntime::TTNN);
+  auto hostTensor =
+      std::make_shared<::ttnn::Tensor>(::ttnn::from_device(deviceTensor));
+  return Tensor(std::static_pointer_cast<void>(hostTensor), nullptr,
+                DeviceRuntime::TTNN);
+}
+
+Tensor ToDevice(Tensor tensor, Device device) {
+  const ::ttnn::Tensor &hostTensor =
+      tensor.as<::ttnn::Tensor>(DeviceRuntime::TTNN);
+  auto &meshDevice = device.as<::ttnn::MeshDevice>(DeviceRuntime::TTNN);
+  DeviceVariant targetDevice = getTargetDevice(meshDevice);
+  std::shared_ptr<::ttnn::Tensor> deviceTensor = std::visit(
+      [&hostTensor](auto &&device) -> std::shared_ptr<::ttnn::Tensor> {
+        return std::make_shared<::ttnn::Tensor>(
+            ::ttnn::to_device(hostTensor, &(device.get()), std::nullopt));
+      },
+      targetDevice);
+  return Tensor(std::static_pointer_cast<void>(deviceTensor), nullptr,
+                DeviceRuntime::TTNN);
+}
+
+void deallocateTensor(Tensor tensor, bool force) {
+  ::ttnn::Tensor &ttnnTensor = tensor.as<::ttnn::Tensor>(DeviceRuntime::TTNN);
+  ttnnTensor.deallocate(force);
+}
+
+Layout getLayout(Binary executableHandle, std::uint32_t programIndex,
+                 std::uint32_t inputIndex) {
+  const ::tt::target::ttnn::TTNNBinary &fbb = *getBinary(executableHandle);
+  LOG_ASSERT(programIndex < fbb.programs()->size(), "Invalid program index");
+  const ::tt::target::ttnn::Program *program =
+      fbb.programs()->Get(programIndex);
+  LOG_ASSERT(inputIndex < program->inputs()->size(), "Invalid input index");
+  const ::tt::target::TensorRef *input = program->inputs()->Get(inputIndex);
+  ::ttnn::Layout inputLayout = utils::inferLayoutFromTileShape(input);
+  ::ttnn::DataType inputDataType = utils::toTTNNDataType(
+      input->desc()->layout()->memory_desc()->data_type());
+  ::ttnn::MemoryConfig inputMemoryConfig = utils::createMemoryConfig(input);
+  std::shared_ptr<LayoutDesc> layoutDesc = std::make_shared<LayoutDesc>(
+      inputLayout, inputDataType, inputMemoryConfig);
+  return Layout(std::static_pointer_cast<void>(layoutDesc),
+                DeviceRuntime::TTNN);
 }
 
 Event submit(Device deviceHandle, Binary executableHandle,

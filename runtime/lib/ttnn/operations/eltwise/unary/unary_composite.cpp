@@ -6,6 +6,7 @@
 #include "tt/runtime/detail/ttnn.h"
 #include "tt/runtime/ttnn/operations/eltwise/unary/utils.h"
 #include "tt/runtime/ttnn/operations/utils.h"
+#include "tt/runtime/ttnn/utils.h"
 #include "ttnn/operations/eltwise/unary/unary_composite.hpp"
 
 namespace tt::runtime::ttnn::operations::unary::composite {
@@ -20,7 +21,7 @@ static void runEltwiseUnaryCompositeOP(
   getEltwiseUnaryOPInputTensor(op, tensorPool, &in);
 
   ::tt::tt_metal::MemoryConfig outputMemoryConfig =
-      utils::createMemoryConfig(op->out());
+      ::tt::runtime::ttnn::utils::createMemoryConfig(op->out());
 
   ::ttnn::Tensor out = ttnnOp(*in, outputMemoryConfig);
   tensorPool.insert_or_assign(op->out()->global_id(), out);

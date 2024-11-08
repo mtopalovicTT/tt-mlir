@@ -125,6 +125,10 @@ struct Tensor : public detail::RuntimeCheckedObjectImpl {
       : detail::RuntimeCheckedObjectImpl(handle, runtime), data(data) {}
 };
 
+struct Layout : public detail::RuntimeCheckedObjectImpl {
+  using detail::RuntimeCheckedObjectImpl::RuntimeCheckedObjectImpl;
+};
+
 } // namespace tt::runtime
 
 #endif
