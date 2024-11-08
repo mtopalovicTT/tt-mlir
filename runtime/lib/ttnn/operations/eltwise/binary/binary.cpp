@@ -86,6 +86,14 @@ void run(const ::tt::target::ttnn::EltwiseOp *op, ProgramContext &context) {
     runEltwiseBinaryOP(op, tensorPool, ::ttnn::divide);
     break;
   }
+  case ::tt::target::ttnn::EltwiseOpType::BitwiseAnd: {
+    // runEltwiseBinaryOP(op, tensorPool, ::ttnn::bitwise_and); // TODO not supported by metal as binary op
+    break;
+  }
+  case ::tt::target::ttnn::EltwiseOpType::BitwiseOr: {
+    // runEltwiseBinaryOP(op, tensorPool, ::ttnn::bitwise_or); // TODO not supported by metal as binary op
+    break;
+  }
   default:
     throw std::invalid_argument("Unsupported Eltwise Binary operation");
   }

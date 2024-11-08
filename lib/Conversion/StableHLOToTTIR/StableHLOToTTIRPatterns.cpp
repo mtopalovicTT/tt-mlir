@@ -1031,6 +1031,21 @@ void addLogicalOpConversionPattern(MLIRContext *ctx,
       mlir::stablehlo::OrOp, mlir::tt::ttir::LogicalOrOp>>(typeConverter, ctx);
 }
 
+void addBitwiseOpsConversionPattern(MLIRContext *ctx,
+                                    RewritePatternSet &patterns,
+                                    TypeConverter &typeConverter) {
+  // TODO how should we support stablehlo ops which work for both bool and integer operands,
+  // and we have separate ops to support those two cases?
+  patterns.add<StableHLOToTTIROpLogicalOpConversionPattern<
+      mlir::stablehlo::AndOp, mlir::tt::ttir::BitwiseAndOp>>(typeConverter,
+                                                             ctx);
+  patterns.add<StableHLOToTTIROpLogicalOpConversionPattern<
+      mlir::stablehlo::OrOp, mlir::tt::ttir::BitwiseOrOp>>(typeConverter, ctx);
+  patterns.add<StableHLOToTTIROpLogicalOpConversionPattern<
+      mlir::stablehlo::NotOp, mlir::tt::ttir::BitwiseNotOp>>(typeConverter,
+                                                             ctx);
+}
+
 void addSliceOpConversionPattern(MLIRContext *ctx, RewritePatternSet &patterns,
                                  TypeConverter &typeConverter) {
   patterns.add<StableHLOToTTIRSliceOpConversionPattern>(typeConverter, ctx);
@@ -1057,6 +1072,7 @@ void populateStableHLOToTTIRPatterns(MLIRContext *ctx,
   addReshapeOpConversionPattern(ctx, patterns, typeConverter);
   addLogicalOpConversionPattern(ctx, patterns, typeConverter);
   addSliceOpConversionPattern(ctx, patterns, typeConverter);
+  addBitwiseOpsConversionPattern(ctx, patterns, typeConverter);
 }
 
 } // namespace mlir::tt

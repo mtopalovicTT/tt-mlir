@@ -93,6 +93,9 @@ enum EltwiseOpType: uint32 {
   Remainder = 32,
   IsFinite = 33,
   Floor = 34,
+  BitwiseAnd = 35,
+  BitwiseOr = 36,
+  BitwiseNot = 37,
 }
 
 union EltwiseOpParams {
