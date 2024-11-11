@@ -13,20 +13,21 @@ namespace mlir::tt::ttnn {
 //===----------------------------------------------------------------------===//
 
 // // Relu backend interface
-size_t ReluOp::getOpPerfCycles(const std::vector<tt::LayoutAttr> &input_layouts,
-                               const tt::LayoutAttr &output_layout) {
+size_t
+ReluOp::getOpPerfCycles(const std::vector<TensorConfigAttr> &input_layouts,
+                        const TensorConfigAttr &output_layout) {
   // Implement a custom estimate for relu op cycles.
   return 5;
 }
 
-size_t ReluOp::getOpL1Usage(const std::vector<tt::LayoutAttr> &input_layouts,
-                            const tt::LayoutAttr &output_layout) {
+size_t ReluOp::getOpL1Usage(const std::vector<TensorConfigAttr> &input_layouts,
+                            const TensorConfigAttr &output_layout) {
   // Implement a custom estimate for relu op L1 usage.
   return 10;
 }
 
-bool ReluOp::isOpLegal(const std::vector<tt::LayoutAttr> &input_layouts,
-                       const tt::LayoutAttr &output_layout) {
+bool ReluOp::isOpLegal(const std::vector<TensorConfigAttr> &input_layouts,
+                       const TensorConfigAttr &output_layout) {
   // Implement a custom check for relu op legality.
   return true;
 }
