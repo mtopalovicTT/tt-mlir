@@ -34,12 +34,6 @@ void createTTNNPipelineTTIRPasses(
   implicitDeviceOptions.meshShape = ::llvm::SmallVector<int64_t>(
       options.meshShape.begin(), options.meshShape.end());
   pm.addPass(mlir::tt::ttir::createTTIRImplicitDevice(implicitDeviceOptions));
-  mlir::tt::ttir::TTIRLayoutOptions layoutOptions;
-  layoutOptions.initMemorySpace = mlir::tt::MemorySpace::System;
-  layoutOptions.defaultMemorySpace = mlir::tt::MemorySpace::DeviceDRAM;
-  layoutOptions.defaultDeviceMemoryLayout =
-      mlir::tt::TensorMemoryLayout::Interleaved;
-  pm.addPass(mlir::tt::ttir::createTTIRLayout(layoutOptions));
 }
 
 void createTTNNPipelineAnalysisPasses(
@@ -60,6 +54,7 @@ void createTTNNPipelineAnalysisPasses(
 
 void createTTNNPipelineLoweringPasses(
     OpPassManager &pm, const TTIRToTTNNBackendPipelineOptions &options) {
+  pm.addPass(createTTNNLayout());
   // Add pass to convert TTIR to TTNN.
   pm.addPass(createConvertTTIRToTTNNPass());
   // Add pass to remove unused values.
